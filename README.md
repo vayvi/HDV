@@ -9,7 +9,7 @@ This repo builds on the code for [DINO-DETR](https://github.com/IDEA-Research/DI
 
 # Introduction
 We present a model which modifies DINO-DETR to perform historical astronomical diagram vectorization by predicting simple geometric primitives, such as lines, circles, and arcs. 
-![method](figures/architecture_figure.png "model arch")
+![method](figures/architecture_figure.jpg "model arch")
 
 
 # Getting Started
