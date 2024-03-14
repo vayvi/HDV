@@ -138,11 +138,19 @@ You should then adjust the coco_path variable to 'custom_dataset_processed' in t
 </details>
 
 
-<!-- 
+
 
 # Bibtex
 If you find this work useful, please consider citing:
 
-```bibtex
+```
+@misc{kalleli2024historical,
+                    title={Historical Astronomical Diagrams Decomposition in Geometric Primitives},
+                    author={Syrine Kalleli and Scott Trigg and Ségolène Albouy and Mathieu Husson and Mathieu Aubry},
+                    year={2024},
+                    eprint={2403.08721},
+                    archivePrefix={arXiv},
+                    primaryClass={cs.CV}
+                    }
 
-``` -->
+```
