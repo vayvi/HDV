@@ -10,12 +10,17 @@ from synthetic_module.helper.resources import (
 from random import randint
 from PIL import ImageFont
 
-FONT_TYPES = ["arabic", "chinese", "handwritten", "normal"]
+# FONT_TYPES = ["arabic", "chinese", "handwritten", "normal"]
+FONT_TYPES = ["handwritten", "normal"]
+# TEXT_FONT_TYPE_RATIO = {
+#     "arabic": 0.25,
+#     "chinese": 0.25,
+#     "handwritten": 0.3,
+#     "normal": 0.2,
+# }
 TEXT_FONT_TYPE_RATIO = {
-    "arabic": 0.25,
-    "chinese": 0.25,
-    "handwritten": 0.3,
-    "normal": 0.2,
+    "handwritten": 0.5,
+    "normal": 0.5,
 }
 MIN_NB_CHARACTERS = 100
 MIN_IMG_DIMENSION = 200

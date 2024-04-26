@@ -55,11 +55,22 @@ bash scripts/download_eida_data.sh
 
 Datasets should be organized as follows:
 ```bash
-data/
-  └── eida_dataset/
-  	 └── images_and_svgs/
-  └── custom_dataset/
-  	 └── images_and_svgs/
+HDV/
+  data/
+    └── eida_dataset/
+      └── images_and_svgs/
+    └── custom_dataset/
+      └── images_and_svgs/
+```
+
+Checkpoints should be organized as follows:
+```bash
+HDV/
+  logs/
+    └── main_model/
+      └── checkpoint0012.pth
+      └── checkpoint0036.pth
+      └── config_cfg.py
 ```
 
 You can process the ground-truth data for evaluation using:
