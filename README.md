@@ -48,14 +48,25 @@ cd ../
 
 <details><summary>2. Annotated Dataset and Model Checkpoint </summary>
 
-Our annotated dataset along with our main model checkpoints can be found [here](https://drive.google.com/drive/folders/1W3SdaGah2l8QIxPcQt4i3s446NAzPx4J?usp=sharing). Annotations are in SVG format. We provide helper functions for parsing svg files in Python if you would like to process a custom annotated dataset. 
+Our annotated dataset along with our main model checkpoints and configuration file can be found [here](https://drive.google.com/drive/folders/1W3SdaGah2l8QIxPcQt4i3s446NAzPx4J?usp=sharing). 
+Checkpoints and corresponding configuration files should be stored in a logs folder. 
+```sh
+HDV/
+  logs/
+    └── main_model/
+      └── checkpoint0012.pth
+      └── checkpoint0036.pth
+      └── config_cfg.py
+```
+Annotations are in SVG format. We provide helper functions for parsing svg files in Python if you would like to process a custom annotated dataset. 
 Once downloaded and organized as follows:
 ```sh
-data/
-  └── eida_dataset/
-  	 └── images_and_svgs/
-  └── custom_dataset/
-  	 └── images_and_svgs/
+HDV/
+  data/
+    └── eida_dataset/
+      └── images_and_svgs/
+    └── custom_dataset/
+      └── images_and_svgs/
 ```
 You can process the ground-truth data for evaluation using: 
 ```sh
