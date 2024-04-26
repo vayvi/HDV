@@ -3,13 +3,13 @@ import torch, json
 import numpy as np
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+
+from util import BASE_DIR
 from util.slconfig import SLConfig
 from models.registry import MODULE_BUILD_FUNCS
 import datasets.transforms as T
 
-from pathlib import Path
 from PIL import Image
-import matplotlib.pyplot as plt
 import glob
 import argparse
 
@@ -75,7 +75,7 @@ def get_outputs_per_class(pred_dict):
 
 
 def main(
-    data_root,
+    data_root=BASE_DIR,
     model_name="main_model",
     data_folder_name="eida_dataset",
     threshold=0.3,
@@ -199,7 +199,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     print(args)
     main(
-        Path("../"),
+        BASE_DIR,
         model_name=args.model_name,
         data_folder_name=args.data_folder_name,
         threshold=float(args.threshold),
