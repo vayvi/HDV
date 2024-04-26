@@ -6,8 +6,14 @@ cd "$SCRIPT_DIR"/..
 
 pip install gdown
 
-mkdir -p models/
-cd models/
+MODEL_DIR=logs
+
+mkdir -p "$MODEL_DIR"/
+cd "$MODEL_DIR"/
+
+mkdir -p main_models/
+cd main_models/
+
 # checkpoint 0012
 gdown 15xY1bKqlZ07oaAALegahYkZR3t8YDIwq
 # checkpoint 0036
