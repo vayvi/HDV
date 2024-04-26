@@ -30,11 +30,9 @@ builds on the DETR-variants [DINO](https://arxiv.org/abs/2203.03605)/[DN](https:
     ```
 4. Compiling CUDA operators
     ```bash
-    cd src/models/dino/ops
-    python setup.py build install # 'cuda not availabel', run => export CUDA_HOME=/usr/local/cuda-<version>
+    python src/models/dino/ops/setup.py build install # 'cuda not availabel', run => export CUDA_HOME=/usr/local/cuda-<version>
     # unit test (should see all checking is True) # could output an outofmemory error
-    python test.py
-    cd ../../../..
+    python src/models/dino/ops/test.py
     ```
 5. Installing the local package for synthetic data generation
     ```bash
@@ -113,12 +111,12 @@ After downloading and processing the evaluation dataset, you can evaluate the pr
 Download a model checkpoint, for example "checkpoint0012.pth" and launch
 
 ```bash
-bash scripts/evaluate_on_eida_final.sh <model_name> epoch_number
+bash scripts/evaluate_on_eida_final.sh <model_name> <epoch_number>
 ```
 
 For example:
 ```bash
-bash scripts/evaluate_on_eida_final.sh main_model 0012
+bash scripts/evaluate_on_eida_final.sh main_model 0044
 ```
 
 You should get the AP for different primitives and for different distance thresholds.
