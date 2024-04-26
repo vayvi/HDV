@@ -11,8 +11,8 @@ MODEL_DIR=logs
 mkdir -p "$MODEL_DIR"/
 cd "$MODEL_DIR"/
 
-mkdir -p main_models/
-cd main_models/
+mkdir -p main_model/
+cd main_model/
 
 # checkpoint 0012
 gdown 15xY1bKqlZ07oaAALegahYkZR3t8YDIwq
