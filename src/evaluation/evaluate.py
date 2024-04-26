@@ -1,13 +1,15 @@
 import os
-import torch
 from pathlib import Path
-import matplotlib.pyplot as plt
-from matplotlib.patches import Ellipse
 import numpy as np
-import json
 import glob
 import pandas as pd
 import argparse
+
+import sys
+
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+
+from util import ROOT_DIR
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -285,8 +287,6 @@ def line_score(
     )
     return aps, results
 
-
-ROOT_DIR = Path("../")
 
 if __name__ == "__main__":
     args = parser.parse_args()
