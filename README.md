@@ -61,6 +61,11 @@ HDV/
       └── images_and_svgs/
 ```
 
+To download the pretrained models, run:
+```bash
+bash scripts/download_pretrained_models.sh
+```
+
 Checkpoints should be organized as follows:
 ```bash
 HDV/
@@ -102,13 +107,8 @@ Download the synthetic resource folder [here](https://www.dropbox.com/s/tiqqb166
 <details>
   <summary>1. Evaluate our pretrained models</summary>
 
-To download the pretrained models, run:
-```bash
-bash scripts/download_pretrained_models.sh
-```
-
 After downloading and processing the evaluation dataset, you can evaluate the pretrained model as follows.
-Download a model checkpoint, for example "checkpoint0012.pth" and launch
+Download a model checkpoint, for example "checkpoint0044.pth" and launch
 
 ```bash
 bash scripts/evaluate_on_eida_final.sh <model_name> <epoch_number>
@@ -121,7 +121,6 @@ bash scripts/evaluate_on_eida_final.sh main_model 0044
 
 You should get the AP for different primitives and for different distance thresholds.
 </details>
-
 
 <details>
 
