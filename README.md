@@ -74,6 +74,10 @@ HDV/
       └── checkpoint0012.pth
       └── checkpoint0036.pth
       └── config_cfg.py
+    └── other_model/
+      └── checkpoint0044.pth
+      └── config_cfg.py
+    ...
 ```
 
 You can process the ground-truth data for evaluation using:
