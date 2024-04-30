@@ -1,13 +1,15 @@
 import os
-import torch
 from pathlib import Path
-import matplotlib.pyplot as plt
-from matplotlib.patches import Ellipse
 import numpy as np
-import json
 import glob
 import pandas as pd
 import argparse
+
+import sys
+
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+
+from util import ROOT_DIR
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -153,167 +155,119 @@ def ap(tp, fp):
     return np.sum((recall[i + 1] - recall[i]) * precision[i + 1])
 
 
-def line_score(
-    preds_folder,
-    gt_path_format,
+def get_prim_score(prim_type, fgt, fpred, prim_k=0, threshold=5):
+    pred, score = fpred[prim_type], fpred[f"{prim_type}_scores"]
+
+    try:
+        gt = fgt[f"{prim_type}s"][:, :, :2]
+    except IndexError:
+        gt = []
+
+    tp, fp = msTPFP(pred, gt, threshold, primitive_k=prim_k)
+
+    indices = np.argsort(-score)
+    n_gt = len(gt)
+    if n_gt > 0:
+        ap_res = ap(
+            np.cumsum(tp[indices]) / n_gt,
+            np.cumsum(fp[indices]) / n_gt,
+        )
+    else:
+        ap_res = 1 if len(fp) == 0 else 0
+
+    result = {
+        f"AP_{prim_type}": ap_res,
+        f"n_gt_{prim_type}": n_gt,
+    }
+
+    return result, tp, fp, score
+
+
+def get_scores(
+    preds_folder: Path,
+    gt_folder: Path,
     line_threshold=5,
     circle_threshold=5,
     arc_threshold=5,
     per_image=True,
 ):
-    gts = sorted(glob.glob(gt_path_format))
-    print(len(gts))
+    gts = sorted(glob.glob(f"{gt_folder}/valid_labels/*.npz"))
+    print(f"Number of diagrams: {len(gts)}")
 
-    n_gt_lines, n_gt_circles, n_gt_arcs = 0, 0, 0
-    lines_tp, lines_fp, lines_scores = [], [], []
-    circles_tp, circles_fp, circles_scores, results = [], [], [], []
-    arcs_tp, arcs_fp, arcs_scores = [], [], []
+    n_gts = {"line": 0, "circle": 0, "arc": 0}
+    tps = {"line": [], "circle": [], "arc": []}
+    fps = {"line": [], "circle": [], "arc": []}
+    scores = {"line": [], "circle": [], "arc": []}
+    thres = {"line": line_threshold, "circle": circle_threshold, "arc": arc_threshold}
+
+    results = []
 
     for gt_path in gts:
+        base_name = os.path.basename(gt_path).split(".")[0]
 
-        im_name = os.path.basename(gt_path).split(".")[0]
-        pred_path = Path(preds_folder) / (im_name + ".npz")
-        with np.load(pred_path) as fpred:
-            pred_line, line_score = fpred["lines"], fpred["line_scores"]
-            pred_circle, circle_score = fpred["circles"], fpred["circle_scores"]
-            pred_arc, arc_score = fpred["arcs"], fpred["arc_scores"]
-
+        with np.load(preds_folder / f"{base_name}.npz") as fpred:
+            pass
         with np.load(gt_path) as fgt:
-            try:
-                gt_line = fgt["lines"][:, :, :2]
-            except IndexError:
-                gt_line = []
-            try:
-                gt_circle = fgt["circles"][:, :, :2]
-            except IndexError:
-                gt_circle = []
-            try:
-                gt_arc = fgt["arcs"][:, :, :2]
-            except IndexError:
-                gt_arc = []
-        n_gt_lines += len(gt_line)
-        n_gt_circles += len(gt_circle)
-        n_gt_arcs += len(gt_arc)
-        tp, fp = msTPFP(
-            pred_line,
-            gt_line,
-            line_threshold,
-            primitive_k=0,
-        )
-        lines_tp.append(tp)
-        lines_fp.append(fp)
-        lines_scores.append(line_score)
+            pass
 
-        indices = np.argsort(-line_score)
-        n_gt_line = len(gt_line)
-        if n_gt_line > 0:
-            ap_res_line = ap(
-                np.cumsum(tp[indices]) / n_gt_line,
-                np.cumsum(fp[indices]) / n_gt_line,
-            )
-        else:
-            ap_res_line = 1 if len(fp) == 0 else 0
+        result = {
+            "image": base_name,
+        }
 
-        tp, fp = msTPFP(
-            pred_circle,
-            gt_circle,
-            circle_threshold,
-            primitive_k=1,
-        )
-        circles_tp.append(tp)
-        circles_fp.append(fp)
-        circles_scores.append(circle_score)
+        for prim_type in ["line", "circle", "arc"]:
+            res, tp, fp, score = get_prim_score(prim_type, fgt, fpred, 0, thres[prim_type])
+            scores[prim_type].append(score)
+            tps[prim_type].append(tp)
+            fps[prim_type].append(fp)
+            n_gts[prim_type] += res[f"n_gt_{prim_type}"]
+            result.update(res)
 
-        indices = np.argsort(-circle_score)
-        n_gt_circle = len(gt_circle)
-        if n_gt_circle > 0:
-            ap_res_circle = ap(
-                np.cumsum(tp[indices]) / n_gt_circle,
-                np.cumsum(fp[indices]) / n_gt_circle,
-            )
-        else:
-            ap_res_circle = 1 if len(fp) == 0 else 0
+        results.append(result)
 
-        tp, fp = msTPFP(pred_arc, gt_arc, arc_threshold, primitive_k=2)
-        arcs_tp.append(tp)
-        arcs_fp.append(fp)
-        arcs_scores.append(arc_score)
-
-        indices_arcs = np.argsort(-arc_score)
-        n_gt_arc = len(gt_arc)
-        if n_gt_arc > 0:
-            ap_res = ap(
-                np.cumsum(tp[indices_arcs]) / n_gt_arc,
-                np.cumsum(fp[indices_arcs]) / n_gt_arc,
-            )
-        else:
-            ap_res = 1 if len(fp) == 0 else 0
-        results.append(
-            {
-                "image": im_name,
-                "AP_line": ap_res_line,
-                "AP_circle": ap_res_circle,
-                "AP_arc": ap_res,
-                "n_gt_line": n_gt_line,
-                "n_gt_circle": n_gt_circle,
-                "n_gt_arc": n_gt_arc,
-            }
-        )
-
-    tps = [lines_tp, circles_tp, arcs_tp]
-    fps = [lines_fp, circles_fp, arcs_fp]
-    scores = [lines_scores, circles_scores, arcs_scores]
-    n_gts = [n_gt_lines, n_gt_circles, n_gt_arcs]
     aps = []
-    for all_tp, all_fp, all_scores, n_gt in zip(tps, fps, scores, n_gts):
+    for all_tp, all_fp, all_scores, n_gt in zip(list(tps.values()), list(fps.values()), list(scores.values()), list(n_gts.values())):
         all_tp = np.concatenate(all_tp)
         all_fp = np.concatenate(all_fp)
         all_index = np.argsort(-np.concatenate(all_scores))
         all_tp = np.cumsum(all_tp[all_index]) / n_gt
         all_fp = np.cumsum(all_fp[all_index]) / n_gt
         aps.append(ap(all_tp, all_fp))
+
     results.append(
         {
             "image": "all",
             "AP_line": aps[0],
             "AP_circle": aps[1],
             "AP_arc": aps[2],
-            "n_gt_line": n_gt_lines,
-            "n_gt_circle": n_gt_circles,
-            "n_gt_arc": n_gt_arcs,
+            "n_gt_line": n_gts["line"],
+            "n_gt_circle": n_gts["circle"],
+            "n_gt_arc": n_gts["arc"],
         }
     )
     return aps, results
 
 
-ROOT_DIR = Path("../")
-
 if __name__ == "__main__":
     args = parser.parse_args()
-    data_folder = args.data_folder_name
-    exp_folder = ROOT_DIR / f"logs/{args.model_name}/"
-    GT_path = ROOT_DIR / f"data/{data_folder}/valid_labels/*.npz"
 
-    pred_folder = str(exp_folder / f"npz_preds{args.epoch}")
-
+    exp_folder = ROOT_DIR / "logs" / args.model_name
+    gt_folder = ROOT_DIR / "data" / args.data_folder_name
+    pred_folder = exp_folder / f"npz_preds{args.epoch}"
     eval_folder = exp_folder / f"evaluation{args.epoch}"
+
     os.makedirs(eval_folder, exist_ok=True)
 
-    line_thresholds, circle_thresholds = args.line_thresholds, args.circle_thresholds
-    arc_thresholds = args.arc_thresholds
     for line_threshold, circle_threshold, arc_threshold in zip(
-        line_thresholds, circle_thresholds, arc_thresholds
+        args.line_thresholds, args.circle_thresholds, args.arc_thresholds
     ):
 
-        aps, results = line_score(
+        aps, results = get_scores(
             pred_folder,
-            str(GT_path),
+            gt_folder,
             line_threshold=line_threshold,
             circle_threshold=circle_threshold,
             arc_threshold=arc_threshold,
         )
-
-        df_name = f"results_{line_threshold}_{circle_threshold}.csv"
 
         df = pd.DataFrame(results)
         df["line_threshold"] = line_threshold
@@ -322,7 +276,10 @@ if __name__ == "__main__":
         df["AP_line"] = np.round(df["AP_line"], 3)
         df["AP_circle"] = np.round(df["AP_circle"], 3)
         df["AP_arc"] = np.round(df["AP_arc"], 3)
-        df.to_csv(eval_folder / df_name)
-        print(
-            f"line_threshold: {line_threshold}, AP_line: {aps[0]}, circle_threshold: {circle_threshold}, ap_circle: {aps[1]}, ap_arc: {aps[2]}, arc_threshold: {arc_threshold}"
-        )
+        df.to_csv(eval_folder / f"results_{line_threshold}_{circle_threshold}.csv")
+
+        print(f"""
+            🪈 LINE => Threshold: {line_threshold} / Average precision: {aps[0]}
+            🪩 CIRCLE => Threshold: {circle_threshold} / Average precision: {aps[1]}
+            󠁼🌈 ARC => Threshold: {arc_threshold} / Average precision: {aps[2]}
+        """)
