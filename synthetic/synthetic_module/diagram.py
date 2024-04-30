@@ -39,29 +39,6 @@ SAME_RADIUS_CIRCLES_RATIO = 0.1
 COLORED_FREQ = 0.8
 
 
-def find_circle_center(p1, p2, p3):
-    """Circle center from 3 points"""
-    temp = p2[0] * p2[0] + p2[1] * p2[1]
-    bc = (p1[0] * p1[0] + p1[1] * p1[1] - temp) / 2
-    cd = (temp - p3[0] * p3[0] - p3[1] * p3[1]) / 2
-    det = (p1[0] - p2[0]) * (p2[1] - p3[1]) - (p2[0] - p3[0]) * (p1[1] - p2[1])
-    if abs(det) < 1.0e-10:
-        return (None, None)
-
-    cx = (bc * (p2[1] - p3[1]) - cd * (p1[1] - p2[1])) / det
-    cy = ((p1[0] - p2[0]) * cd - (p2[0] - p3[0]) * bc) / det
-    return np.array([cx, cy])
-
-
-def get_angles_from_arc_points(p0, p_mid, p1):
-    arc_center = find_circle_center(p0, p_mid, p1)
-    arc_center = (arc_center[0], arc_center[1])
-    start_angle = np.arctan2(p0[1] - arc_center[1], p0[0] - arc_center[0])
-    end_angle = np.arctan2(p1[1] - arc_center[1], p1[0] - arc_center[0])
-    mid_angle = np.arctan2(p_mid[1] - arc_center[1], p_mid[0] - arc_center[0])
-    return start_angle, mid_angle, end_angle, arc_center
-
-
 def find_circle_center_arr(p1, p2, p3):
     """Circle center from 3 points"""
     temp = p2[:, 0] ** 2 + p2[:, 1] ** 2
