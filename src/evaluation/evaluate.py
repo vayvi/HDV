@@ -156,7 +156,7 @@ def ap(tp, fp):
 
 
 def get_prim_score(prim_type, fgt, fpred, prim_k=0, threshold=5):
-    pred, score = fpred[prim_type], fpred[f"{prim_type}_scores"]
+    pred, score = fpred[f"{prim_type}s"], fpred[f"{prim_type}_scores"]
 
     try:
         gt = fgt[f"{prim_type}s"][:, :, :2]
@@ -186,9 +186,9 @@ def get_prim_score(prim_type, fgt, fpred, prim_k=0, threshold=5):
 def get_scores(
     preds_folder: Path,
     gt_folder: Path,
-    line_threshold=5,
-    circle_threshold=5,
-    arc_threshold=5,
+    l_threshold=5,
+    c_threshold=5,
+    a_threshold=5,
     per_image=True,
 ):
     gts = sorted(glob.glob(f"{gt_folder}/valid_labels/*.npz"))
@@ -198,29 +198,25 @@ def get_scores(
     tps = {"line": [], "circle": [], "arc": []}
     fps = {"line": [], "circle": [], "arc": []}
     scores = {"line": [], "circle": [], "arc": []}
-    thres = {"line": line_threshold, "circle": circle_threshold, "arc": arc_threshold}
+    thres = {"line": l_threshold, "circle": c_threshold, "arc": a_threshold}
 
     results = []
 
     for gt_path in gts:
         base_name = os.path.basename(gt_path).split(".")[0]
 
-        with np.load(preds_folder / f"{base_name}.npz") as fpred:
-            pass
-        with np.load(gt_path) as fgt:
-            pass
-
         result = {
             "image": base_name,
         }
 
-        for prim_type in ["line", "circle", "arc"]:
-            res, tp, fp, score = get_prim_score(prim_type, fgt, fpred, 0, thres[prim_type])
-            scores[prim_type].append(score)
-            tps[prim_type].append(tp)
-            fps[prim_type].append(fp)
-            n_gts[prim_type] += res[f"n_gt_{prim_type}"]
-            result.update(res)
+        with np.load(preds_folder / f"{base_name}.npz") as fpred, np.load(gt_path) as fgt:
+            for prim_k, prim_type in enumerate(["line", "circle", "arc"]):
+                res, tp, fp, score = get_prim_score(prim_type, fgt, fpred, prim_k, thres[prim_type])
+                scores[prim_type].append(score)
+                tps[prim_type].append(tp)
+                fps[prim_type].append(fp)
+                n_gts[prim_type] += res[f"n_gt_{prim_type}"]
+                result.update(res)
 
         results.append(result)
 
@@ -264,9 +260,9 @@ if __name__ == "__main__":
         aps, results = get_scores(
             pred_folder,
             gt_folder,
-            line_threshold=line_threshold,
-            circle_threshold=circle_threshold,
-            arc_threshold=arc_threshold,
+            l_threshold=line_threshold,
+            c_threshold=circle_threshold,
+            a_threshold=arc_threshold,
         )
 
         df = pd.DataFrame(results)
@@ -279,7 +275,7 @@ if __name__ == "__main__":
         df.to_csv(eval_folder / f"results_{line_threshold}_{circle_threshold}.csv")
 
         print(f"""
-            🪈 LINE => Threshold: {line_threshold} / Average precision: {aps[0]}
-            🪩 CIRCLE => Threshold: {circle_threshold} / Average precision: {aps[1]}
-            󠁼🌈 ARC => Threshold: {arc_threshold} / Average precision: {aps[2]}
+            🪈 LINE   => Threshold: {line_threshold:.2f} / Average precision: {aps[0]}
+            🪩 CIRCLE => Threshold: {circle_threshold:.2f} / Average precision: {aps[1]}
+            󠁼🌈 ARC    => Threshold: {arc_threshold:.2f} / Average precision: {aps[2]}
         """)

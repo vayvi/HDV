@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 import matplotlib.pyplot as plt
 from matplotlib.patches import Ellipse
@@ -8,8 +9,12 @@ from glob import glob
 import argparse
 from PIL import Image
 
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+
+from util import DATA_DIR
+
 parser = argparse.ArgumentParser()
-parser.add_argument("--data_root", type=str, default="../data/eida_dataset")
+parser.add_argument("--data_root", type=str, default="eida_dataset", help="root directory of the data")
 
 
 def scale_positions(lines, heatmap_scale=(128, 128), im_shape=None):
@@ -55,10 +60,11 @@ def get_bbox_from_center_radii(center, radii):
 
 
 def main(data_root, exist_ok=True):
+    data_dir = DATA_DIR / data_root
     batch = "valid"
-    output_dir = data_root / f"{batch}_labels"
+    output_dir = data_dir / f"{batch}_labels"
     os.makedirs(output_dir, exist_ok=exist_ok)
-    anno_file = os.path.join(data_root, f"{batch}.json")
+    anno_file = os.path.join(data_dir, f"{batch}.json")
     im_rescale = (512, 512)
     heatmap_scale = (128, 128)
     with open(anno_file, "r") as f:
@@ -84,7 +90,7 @@ def main(data_root, exist_ok=True):
                 data["circle_centers"], data["circle_radii"]
             )
 
-        im_path = str((data_root / "images") / data["filename"])
+        im_path = str((data_dir / "images") / data["filename"])
 
         image = Image.open(im_path).convert("RGB")
         im_shape = image.size
@@ -121,5 +127,5 @@ def main(data_root, exist_ok=True):
 
 if __name__ == "__main__":
     args = parser.parse_args()
-    args.data_root = Path(args.data_root)
+    args.data_root = args.data_root
     main(args.data_root)

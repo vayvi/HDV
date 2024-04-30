@@ -112,15 +112,22 @@ Download the synthetic resource folder [here](https://www.dropbox.com/s/tiqqb166
   <summary>1. Evaluate our pretrained models</summary>
 
 After downloading and processing the evaluation dataset, you can evaluate the pretrained model as follows.
-Download a model checkpoint, for example "checkpoint0044.pth" and launch
+Download a model checkpoint: 
+- `model_name` corresponds to the folder inside `logs/` where the checkpoint file is located
+- `epoch_number` is the epoch number of the checkpoint file
+- `data_folder_name` is the name of the folder inside `data/` where the evaluation dataset is located (default to `eida_dataset`)
 
 ```bash
-bash scripts/evaluate_on_eida_final.sh <model_name> <epoch_number>
+bash scripts/evaluate_on_eida_final.sh <model_name> <epoch_number> <data_folder_name>
 ```
 
 For example:
 ```bash
-bash scripts/evaluate_on_eida_final.sh main_model 0044
+# for logs/main_model/checkpoint0036.pth on eida_dataset
+bash scripts/evaluate_on_eida_final.sh main_model 0036 eida_dataset
+
+# for logs/eida_demo_model/checkpoint0044.pth on eida_dataset
+bash scripts/evaluate_on_eida_final.sh eida_demo_model 0044
 ```
 
 You should get the AP for different primitives and for different distance thresholds.

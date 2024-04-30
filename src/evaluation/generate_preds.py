@@ -75,14 +75,14 @@ def get_outputs_per_class(pred_dict):
 
 
 def main(
-    data_root=ROOT_DIR,
+    root_dir=ROOT_DIR,
     model_name="main_model",
     data_folder_name="eida_dataset",
     threshold=0.3,
     epoch="",
 ):
     # load model
-    model_folder = data_root / f"logs/{model_name}"
+    model_folder = root_dir / f"logs/{model_name}"
     encoder_only = "encoder-only" in model_name
     print("encoder_only", encoder_only)
     model_config_path = model_folder / "config_cfg.py"
@@ -103,7 +103,7 @@ def main(
     _ = model.eval()
 
     # load all image paths
-    DATADIR = data_root / "data"
+    DATADIR = root_dir / "data"
     images_folder_path = (DATADIR / data_folder_name) / "images"
     file_extention = ".jpg"
     image_paths = sorted(glob.glob(str(images_folder_path) + f"/*{file_extention}"))
@@ -146,7 +146,9 @@ def main(
         image, _ = transform(image, None)
         # size = torch.Tensor([image.shape[1], image.shape[2]])
 
-        output = model.cuda()(image[None].cuda())
+        torch.cuda.empty_cache()
+        with torch.no_grad():
+            output = model.cuda()(image[None].cuda())
         if encoder_only:
             output = output["interm_outputs"]
         output = postprocessors["param"](
