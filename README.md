@@ -114,7 +114,7 @@ Download the synthetic resource folder [here](https://www.dropbox.com/s/tiqqb166
 After downloading and processing the evaluation dataset, you can evaluate the pretrained model as follows.
 Download a model checkpoint: 
 - `model_name` corresponds to the folder inside `logs/` where the checkpoint file is located
-- `epoch_number` is the epoch number of the checkpoint file
+- `epoch_number` epoch number of the checkpoint file to be used
 - `data_folder_name` is the name of the folder inside `data/` where the evaluation dataset is located (default to `eida_dataset`)
 
 ```bash
@@ -138,6 +138,16 @@ You should get the AP for different primitives and for different distance thresh
   <summary>2. Inference and Visualization</summary>
 
 For inference and visualizing results over custom images, you can use the [notebook](src/inference.ipynb).
+
+You can also use the following script to run inference on a whole dataset (jpg images located in `data/<data_folder_name>/images/`):
+```bash
+bash scripts/run_inference.sh <model_name> <epoch_number> <data_folder_name>
+
+# for logs/main_model/checkpoint0036.pth on eida_dataset
+bash scripts/run_inference.sh main_model 0036 eida_dataset
+```
+
+Results will be saved in `data/<data_folder_name>/preds_<model_name><epoch_number>/`.
 
 </details>
 
