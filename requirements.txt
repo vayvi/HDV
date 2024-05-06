@@ -14,3 +14,7 @@ timm
 scikit-image
 opencv-python
 pandas
+svgwrite
+
+notebook
+wandb

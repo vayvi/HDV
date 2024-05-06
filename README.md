@@ -137,7 +137,7 @@ You should get the AP for different primitives and for different distance thresh
 
   <summary>2. Inference and Visualization</summary>
 
-For inference and visualizing results over custom images, you can use the [notebook](src/inference.ipynb).
+For inference and visualizing results over custom images, you can use the [notebook](src/notebooks/inference.ipynb).
 
 You can also use the following script to run inference on a whole dataset (jpg images located in `data/<data_folder_name>/images/`):
 ```bash
