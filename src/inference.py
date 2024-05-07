@@ -3,17 +3,19 @@ import os
 import time
 from pathlib import Path
 
+from PIL import Image
 import numpy as np
 import torch
+import svgwrite
 
 from main import build_model_main
+from util.logger import SLogger
 from util import MODEL_DIR, DEFAULT_CONF, DATA_DIR
 from util.slconfig import SLConfig, DictAction
 from util.visualizer import COCOVisualizer
 from util.primitives import get_arc_param, write_svg_dwg, line_to_xy, circle_to_xy, arc_to_xy, remove_duplicate_lines, \
     remove_small_lines, remove_duplicate_circles, remove_duplicate_arcs, remove_arcs_on_top_of_circles, \
     remove_arcs_on_top_of_lines
-from PIL import Image
 import datasets.transforms as T
 
 import xml.etree.ElementTree as ET
@@ -22,7 +24,7 @@ import shutil
 
 from svg.path import parse_path
 from svg.path.path import Line, Arc
-import svgwrite
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -57,9 +59,9 @@ parser.add_argument(
 )
 
 prim_info = {
-    'line': {'color': 'red', 'line_width': 1, 'indices': slice(0, 4), 'reshape': (-1, 2, 2)},
-    'circle': {'color': 'green', 'line_width': 1, 'indices': slice(4, 8), 'reshape': (-1, 2, 2)},
-    'arc': {'color': 'blue', 'line_width': 1, 'indices': slice(8, 14), 'reshape': (-1, 3, 2)}
+    'line': {'color': 'red', 'line_width': 1, 'indices': slice(0, 4), 'param_shape': (-1, 2, 2)},
+    'circle': {'color': 'green', 'line_width': 1, 'indices': slice(4, 8), 'param_shape': (-1, 3)},
+    'arc': {'color': 'blue', 'line_width': 1, 'indices': slice(8, 14), 'param_shape': (-1, 3, 2)}
 }
 prim_list = list(prim_info.keys())
 
@@ -88,26 +90,22 @@ def scale_positions(prims, heatmap_scale=(128, 128), im_shape=None):
 def prim_to_xy(prim_type, p_preds, img_shape):
     p_info = prim_info[prim_type]
     p_preds = p_preds[:, p_info["indices"]].cpu().numpy()
-    # good_prims = p_pred.reshape(p_info["reshape"])
-    # scale_positions(good_prims.copy(), (128, 128), img_shape)
 
+    # scale_positions(p_preds.reshape(p_info["param_shape"]).copy(), (128, 128), img_shape)
     if prim_type == "line":
-        return np.array([line_to_xy(p) for p in p_preds]) # p.flatten()
+        p_preds = np.array([line_to_xy(p) for p in p_preds])
     elif prim_type == "circle":
-        return np.array([circle_to_xy(p) for p in p_preds])
+        p_preds = np.array([circle_to_xy(p) for p in p_preds])
     elif prim_type == "arc":
-        return np.array([arc_to_xy(p) for p in p_preds])
-    return np.array([p.flatten() for p in p_preds])
+        p_preds = np.array([arc_to_xy(p) for p in p_preds])
+
+    return p_preds.reshape(p_info["param_shape"])
 
 
 def pred_to_dict(preds, img_shape, heatmap_scale=(128, 128)):
     prim_dict = {}
     for prim_k, prim_type in enumerate(prim_list):
         mask = preds["labels"] == prim_k
-        # p_info = prim_info[prim_type]
-        # prims = preds["parameters"][mask][:, p_info["indices"]].cpu().numpy()
-        # prims = prims.reshape(p_info["reshape"])
-        # prims = scale_positions(prims.copy(), heatmap_scale, img_shape)
         prim_dict.update({
             f"{prim_type}s": prim_to_xy(prim_type, preds["parameters"][mask], img_shape),
             f"{prim_type}_scores": preds["scores"][mask].cpu().numpy()
@@ -145,14 +143,14 @@ def generate_prediction(img, processed_img, model, threshold=0.3):
         # a_filter = (scores > 0.3) & (labels == 2)
         p_filter = scores > threshold # (l_filter | c_filter | a_filter)
 
-        pred_dict = {
+        out_pred = {
             'parameters': output['parameters'][p_filter],
             'size': torch.Tensor([processed_img.shape[1], processed_img.shape[2]]),
             'labels': output['labels'][p_filter],
             'scores': scores[p_filter],
         }
 
-    return pred_dict
+    return out_pred
 
 
 def postprocess_preds(model_preds, img_size, heatmap_scale=(128, 128)):
@@ -186,7 +184,7 @@ def save_pred_as_npz(img_name, pred_dict, pred_dir):
     )
 
 
-def predict(image_path, output_dir, model):
+def predict(image_path, output_dir, model, logger):
     im_name = Path(image_path).stem
     image = Image.open(image_path).convert("RGB")  # load image
     orig_img_size = image.size
@@ -239,6 +237,8 @@ def predict(image_path, output_dir, model):
     lines = lines.reshape(-1, 2, 2)
     arcs = arcs.reshape(-1, 3, 2)
 
+    size = [tr_img.shape[1], tr_img.shape[2]]
+
     dwg = svgwrite.Drawing(str(output_dir / f"{im_name}.svg"), profile="tiny", size=size)
     dwg.add(dwg.image(href=f"{im_name}.jpg", insert=(0, 0), size=size))
     dwg = write_svg_dwg(dwg, lines, circles, arcs, show_image=False, image=None)
@@ -288,6 +288,14 @@ def predict(image_path, output_dir, model):
 
     # Write the changes back to the file
     tree.write(file_name, xml_declaration=True)
+    return {
+        "lines": lines,
+        "line_scores": line_scores,
+        "circles": circles,
+        "circle_scores": circle_scores,
+        "arcs": arcs,
+        "arc_scores": arc_scores,
+    }
 
 
 def save_pred_as_svg(img_path, img_name, img_size, pred_dict, pred_dir):
@@ -380,25 +388,30 @@ if __name__ == "__main__":
         # create or overwrite existing folders
         os.makedirs(dataset_folder / f"{out}_preds_{args.model_name}{epoch}", exist_ok=True)
 
+    logger = SLogger(
+        name="inference",
+        log_file=dataset_folder / f"logs_{args.model_name}{epoch}.txt",
+    )
+
     t0 = time.time()
     img_paths = list(img_folder.glob('*.jpg'))
-    for path in img_paths:
+    for path in img_paths[:10]:
         filename = Path(path).stem
         t1 = time.time()
 
-        print(f"\n⚙️  Processing {filename} as {' '.join(formats)}...")
-        # predict(path, dataset_folder / f"svg_preds_{args.model_name}{epoch}", model)
+        logger.info(f"\n⚙️  Processing {filename} as {' '.join(formats)}...")
+        # preds = predict(path, dataset_folder / f"svg_preds_{args.model_name}{epoch}", model, logger)
 
         orig_img, tr_img = preprocess_img(path)
         preds = generate_prediction(orig_img, tr_img, model)
-        preds = postprocess_preds(preds, orig_img.size)
-
-        # print(preds)
-        # if len(preds["arcs"]) != 0:
-        #     continue
 
         if "img" in formats:
+            # DO NOT WORK
             save_pred_as_img(filename, tr_img, preds, pred_dir=dataset_folder / f"img_preds_{args.model_name}{epoch}")
+
+        preds = postprocess_preds(preds, orig_img.size)
+
+        # logger.info(preds, color="cyan")
 
         if "npz" in formats:
             save_pred_as_npz(filename, preds, pred_dir=dataset_folder / f"npz_preds_{args.model_name}{epoch}")
@@ -406,6 +419,6 @@ if __name__ == "__main__":
         if "svg" in formats:
             save_pred_as_svg(path, filename, orig_img.size, preds, pred_dir=dataset_folder / f"svg_preds_{args.model_name}{epoch}")
 
-        print(f"\n✅  Done processing {filename} in {time.time() - t1:.2f}s")
+        logger.info(f"\n✅  Done processing {filename} in {time.time() - t1:.2f}s")
 
-    print(f"\n🕒  Total time taken: {time.time() - t0:.2f}s")
+    logger.info(f"\n🕒  Total time taken: {time.time() - t0:.2f}s")
