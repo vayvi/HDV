@@ -141,13 +141,13 @@ For inference and visualizing results over custom images, you can use the [noteb
 
 You can also use the following script to run inference on a whole dataset (jpg images located in `data/<data_folder_name>/images/`):
 ```bash
-bash scripts/run_inference.sh <model_name> <epoch_number> <data_folder_name>
+bash scripts/run_inference.sh <model_name> <epoch_number> <data_folder_name> <export_formats>
 
-# for logs/main_model/checkpoint0036.pth on eida_dataset
-bash scripts/run_inference.sh main_model 0036 eida_dataset
+# for logs/main_model/checkpoint0036.pth on eida_dataset with svg and npz export formats
+bash scripts/run_inference.sh main_model 0036 eida_dataset svg+npz
 ```
 
-Results will be saved in `data/<data_folder_name>/preds_<model_name><epoch_number>/`.
+Results will be saved in `data/<data_folder_name>/<export_format>_preds_<model_name><epoch_number>/`.
 
 </details>
 

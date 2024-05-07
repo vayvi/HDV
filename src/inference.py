@@ -52,9 +52,8 @@ parser.add_argument(
     help="threshold for predictions, format: 0.01",
 )
 parser.add_argument(
-    "--export-formats",
-    nargs="+",
-    default="img+npz+svg",
+    "--export_formats",
+    default="img+npy+svg",
     help="Format to export the predictions in, default: img, svg, npz",
 )
 
@@ -87,11 +86,10 @@ def scale_positions(prims, heatmap_scale=(128, 128), im_shape=None):
     return prims
 
 
-def prim_to_xy(prim_type, p_preds, img_shape):
+def prim_to_xy(prim_type, p_preds):
     p_info = prim_info[prim_type]
     p_preds = p_preds[:, p_info["indices"]].cpu().numpy()
 
-    # scale_positions(p_preds.reshape(p_info["param_shape"]).copy(), (128, 128), img_shape)
     if prim_type == "line":
         p_preds = np.array([line_to_xy(p) for p in p_preds])
     elif prim_type == "circle":
@@ -102,12 +100,12 @@ def prim_to_xy(prim_type, p_preds, img_shape):
     return p_preds.reshape(p_info["param_shape"])
 
 
-def pred_to_dict(preds, img_shape, heatmap_scale=(128, 128)):
+def pred_to_dict(preds):
     prim_dict = {}
     for prim_k, prim_type in enumerate(prim_list):
         mask = preds["labels"] == prim_k
         prim_dict.update({
-            f"{prim_type}s": prim_to_xy(prim_type, preds["parameters"][mask], img_shape),
+            f"{prim_type}s": prim_to_xy(prim_type, preds["parameters"][mask]),
             f"{prim_type}_scores": preds["scores"][mask].cpu().numpy()
         })
     return prim_dict
@@ -153,8 +151,8 @@ def generate_prediction(img, processed_img, model, threshold=0.3):
     return out_pred
 
 
-def postprocess_preds(model_preds, img_size, heatmap_scale=(128, 128)):
-    pred_dict = pred_to_dict(model_preds, img_size, heatmap_scale)
+def postprocess_preds(model_preds, img_size):
+    pred_dict = pred_to_dict(model_preds)
 
     for prim_type in prim_list:
         pred_dict = process_preds(pred_dict, prim_type, img_size)
@@ -395,7 +393,7 @@ if __name__ == "__main__":
 
     t0 = time.time()
     img_paths = list(img_folder.glob('*.jpg'))
-    for path in img_paths[:10]:
+    for path in img_paths:
         filename = Path(path).stem
         t1 = time.time()
 
@@ -406,7 +404,11 @@ if __name__ == "__main__":
         preds = generate_prediction(orig_img, tr_img, model)
 
         if "img" in formats:
-            # DO NOT WORK
+            # DO NOT WORK: correct by copying logic of inference notebook
+            # for prim in prim_list:
+            #     info = prim_info[prim]
+            #     pred = preds['parameters'][:, info["indices"]]
+            #     pos = scale_positions(pred.reshape(info["param_shape"]).copy(), (128, 128), orig_img.size)
             save_pred_as_img(filename, tr_img, preds, pred_dir=dataset_folder / f"img_preds_{args.model_name}{epoch}")
 
         preds = postprocess_preds(preds, orig_img.size)
