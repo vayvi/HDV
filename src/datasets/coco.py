@@ -235,7 +235,6 @@ def build(image_set, args):
 
         return dataset
     if "synthetic" in str(root):
-
         PATHS = {
             "train": (root / "train", root / "annotations" / f"{mode}_train.json"),
             "val": (root / "val", root / "annotations" / f"{mode}_val.json"),
@@ -260,3 +259,6 @@ def build(image_set, args):
         args=args,
     )
     return dataset
+
+# MARKER : build dataset for training and validation with CocoDetection
+

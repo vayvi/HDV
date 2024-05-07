@@ -164,16 +164,10 @@ def is_large_arc(rad_angle):
 
 def find_circle_center(p1, p2, p3):
     """Circle center from 3 points"""
-    print(p1, p2, p3)
 
-    try:
-        p1_0, p1_1 = p1[0], p1[1]
-        p2_0, p2_1 = p2[0], p2[1]
-        p3_0, p3_1 = p3[0], p3[1]
-    except:
-        p1_0, p1_1 = p1
-        p2_0, p2_1 = p2
-        p3_0, p3_1 = p3
+    p1_0, p1_1 = p1[0], p1[1]
+    p2_0, p2_1 = p2[0], p2[1]
+    p3_0, p3_1 = p3[0], p3[1]
 
     temp = p2_0 * p2_0 + p2_1 * p2_1
     bc = (p1_0 * p1_0 + p1_1 * p1_1 - temp) / 2

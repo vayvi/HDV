@@ -69,7 +69,6 @@ def get_4_cardinal_pts_circle(pred_circles):
 
 
 def get_l2_distance_circles(pred_circles, gt_circles):
-
     cardinal_pts_pred = get_4_cardinal_pts_circle(pred_circles)
     cardinal_pts_gt = get_4_cardinal_pts_circle(gt_circles)
 

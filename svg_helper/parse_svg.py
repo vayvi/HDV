@@ -19,7 +19,6 @@ parser.add_argument("--sanity_check", action="store_true")
 parser.add_argument("--image_file_extension", type=str, default="jpg")
 parser.add_argument("--exist_ok", action="store_true")
 
-
 def parse_matrix_string(matrix_string):
     assert not matrix_string.startswith("translate")
     if matrix_string.startswith("matrix"):
@@ -150,6 +149,8 @@ def get_arc_param_from_inkscape(arc_path_object):
         transform_matrix = parse_matrix_string(arc_transform)
         p0 = (transform_matrix @ np.append(p0, 1))[:2]
         p1 = (transform_matrix @ np.append(p1, 1))[:2]
+
+        # NOTE: check determinant of the matrix to not change the flag of the arc
         p_mid = (transform_matrix @ np.append(p_mid, 1))[:2]
         if np.linalg.det(transform_matrix[:2, :2]) < 0:
             p0, p1 = p1, p0

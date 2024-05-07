@@ -4,6 +4,7 @@ import numpy as np
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
+from util import MODEL_DIR, DATA_DIR
 from util import ROOT_DIR
 from util.slconfig import SLConfig
 from models.registry import MODULE_BUILD_FUNCS
@@ -82,19 +83,15 @@ def main(
     epoch="",
 ):
     # load model
-    model_folder = root_dir / f"logs/{model_name}"
+    model_folder = MODEL_DIR / f"{model_name}"
     encoder_only = "encoder-only" in model_name
     print("encoder_only", encoder_only)
     model_config_path = model_folder / "config_cfg.py"
 
-    if epoch == "":
-        model_checkpoint_path = model_folder / "checkpoint.pth"
-        npz_dir = model_folder / "npz_preds"
-
-    else:
-        model_checkpoint_path = model_folder / f"checkpoint{epoch}.pth"
-        npz_dir = model_folder / f"npz_preds{epoch}"
+    model_checkpoint_path = model_folder / f"checkpoint{epoch}.pth"
+    npz_dir = model_folder / f"npz_preds{epoch}"
     os.makedirs(npz_dir, exist_ok=True)
+
     args = SLConfig.fromfile(model_config_path)
     args.device = "cuda"
     model, _, postprocessors = build_model_main(args)
@@ -103,18 +100,17 @@ def main(
     _ = model.eval()
 
     # load all image paths
-    DATADIR = root_dir / "data"
-    images_folder_path = (DATADIR / data_folder_name) / "images"
-    file_extention = ".jpg"
-    image_paths = sorted(glob.glob(str(images_folder_path) + f"/*{file_extention}"))
-    print(str(images_folder_path))
-    print(f"Found {len(image_paths)} images")
+    images_folder_path = DATA_DIR / data_folder_name / "images"
+    file_extension = ".jpg"
+    image_paths = sorted(glob.glob(f"{images_folder_path}/*{file_extension}"))
+    print(f"{images_folder_path}: Found {len(image_paths)} images")
+
     batch = "valid"
-    anno_file = DATADIR / f"{data_folder_name}/{batch}.json"
+    anno_file = DATA_DIR / f"{data_folder_name}/{batch}.json"
     with open(anno_file, "r") as f:
         dataset = json.load(f)
 
-    heatmap_scale = (512, 512)
+    # heatmap_scale = (512, 512)
     transform = T.Compose(
         [
             T.RandomResize([800], max_size=1333),
@@ -128,18 +124,16 @@ def main(
         im_name = os.path.basename(image_path).split(".")[0]
         print(im_name)
         for data in dataset:
-            if data["filename"] == f"{im_name}{file_extention}":
+            if data["filename"] == f"{im_name}{file_extension}":
                 break
         else:
             print(f"##### Image {im_name} not found")
             # raise ValueError(f"Could not find image {im_name} in dataset")
             continue
 
-        heatmap_scale = (
-            128,
-            128,
-        )
-        # Each image can have a different aspect ratio, we rescale the image to a fixed size (512, 512) and then resize the heatmap to (128, 128) comparison.
+        heatmap_scale = (128, 128)
+        # Each image can have a different aspect ratio, we rescale the image to a fixed size (512, 512)
+        # and then resize the heatmap to (128, 128) comparison.
         image = Image.open(image_path).convert("RGB")  # load image
         size = image.size
         im_shape = size

@@ -52,9 +52,16 @@ def get_args_parser():
         "--device", default="cuda", help="device to use for training / testing"
     )
     parser.add_argument("--seed", default=42, type=int)
+
+    # Resume training from the highest checkpoint present in the output_dir => will reuse LR + optimizer of the previous model
     parser.add_argument("--resume", default="", help="resume from checkpoint")
+
+    # Use checkpoint to initialize the model and optimizer, but not the LR (for finetuning)
     parser.add_argument("--pretrain_model_path", help="load from other checkpoint")
+    # Layers where weights are kept (usually first layers that are less specialized)
     parser.add_argument("--finetune_ignore", type=str, nargs="+")
+
+
     parser.add_argument(
         "--start_epoch", default=0, type=int, metavar="N", help="start epoch"
     )
@@ -119,7 +126,7 @@ def main(args):
         import wandb
 
         run = wandb.init(
-            project="dino-primitives", config=cfg_dict, notes=args.output_dir
+            project="dino-primitives", config=cfg_dict, notes=args.output_dir#, entity="<your-wandb-username>"
         )
     else:
         run = None
@@ -130,8 +137,9 @@ def main(args):
     if not getattr(args, "debug", None):
         args.debug = False
 
-    # setup logger
+    # MARKER in case of fine-tuning, create new folder for the new model
     os.makedirs(args.output_dir, exist_ok=True)
+
     logger = setup_logger(
         output=os.path.join(args.output_dir, "info.txt"),
         distributed_rank=args.rank,
@@ -195,6 +203,7 @@ def main(args):
         param_dicts, lr=args.lr, weight_decay=args.weight_decay
     )
 
+    # MARKER VAL / TRAIN DATASET
     dataset_train = build_dataset(image_set="train", args=args)
     dataset_val = build_dataset(image_set="val", args=args)
 
@@ -334,6 +343,8 @@ def main(args):
 
     print("Start training")
     start_time = time.time()
+
+    # holds the epoch number for which the loss was minimal: in our case, easier to use wandb to make sense of loss
     best_map_holder = BestMetricHolder(use_ema=args.use_ema)
     for epoch in range(args.start_epoch, args.epochs):
         epoch_start_time = time.time()

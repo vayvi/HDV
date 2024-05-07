@@ -224,11 +224,9 @@ class HungarianMatcher(nn.Module):
 
         cost_bbox[:, tgt_ids == 0] += cost_lines
         cost_bbox[:, tgt_ids == 1] += cost_circles
-        cost_bbox[:, tgt_ids == 2] += (
-            cost_arcs * 2 / 3
-        )  # arcs have 6 params instead of 4
+        cost_bbox[:, tgt_ids == 2] += cost_arcs * 2 / 3 # arcs have 6 params instead of 4
 
-        # Compute the giou cost betwen boxes
+        # Compute the giou cost between boxes
         if self.cost_giou > 0:
             print("computing giou")
             cost_giou = -generalized_box_iou(
