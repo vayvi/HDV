@@ -1,6 +1,14 @@
+import re
+
 import numpy as np
 
 import matplotlib.pyplot as plt
+from svg.path import parse_path
+from svg.path.path import Line, Move, Arc
+
+
+class BadPath(Exception):
+    pass
 
 
 def get_angles_from_arc_points(p0, p_mid, p1):
@@ -118,7 +126,7 @@ def write_svg_dwg(dwg, lines=None, circles=None, arcs=None, show_image=False, im
 
 def get_arc_param(arc_path, arc_transform=None):
     to_2pi = lambda x: (x + 2 * np.pi) % (2 * np.pi)
-    assert len(arc_path) == 1, f"arc path with more than one arc {arc}"
+    assert len(arc_path) == 1, f"arc path with more than one arc {arc_path}"
     arc_path = arc_path[0]
 
     assert arc_path.rotation == 0, f"arc path with non-zero rotation {arc_path}"
@@ -134,6 +142,156 @@ def get_arc_param(arc_path, arc_transform=None):
     end_angle = to_2pi(np.arctan2(p1[1] - center[1], p1[0] - center[0]))
 
     return center, radius, start_angle, end_angle, p0, p1
+
+
+def parse_matrix_string(matrix_string):
+    assert not matrix_string.startswith("translate")
+    if matrix_string.startswith("matrix"):
+        numbers = re.findall(r"[-+]?\d*\.\d+|\d+", matrix_string)
+        numbers = [float(num) for num in numbers]
+        matrix = np.eye(3)
+        matrix[0, :3] = numbers[0], numbers[2], numbers[4]
+        matrix[1, :3] = numbers[1], numbers[3], numbers[5]
+
+        return matrix
+
+    elif matrix_string.startswith("scale"):
+        numbers = re.findall(r"[-+]?\d*\.\d+|[-+]?\d+", matrix_string)
+        numbers = [float(num) for num in numbers]
+
+        if len(numbers) == 1:
+            numbers = numbers * 2
+        matrix = np.eye(3)
+        matrix[0, 0] = numbers[0]
+        matrix[1, 1] = numbers[1]
+        return matrix
+
+    elif matrix_string.startswith("rotate"):
+        numbers = re.findall(r"[-+]?\d*\.\d+|[-+]?\d+", matrix_string)
+        numbers = [float(num) for num in numbers]
+
+        assert len(numbers) == 1, "rotation angle should be one number"
+        angle_radians = np.radians(numbers[0])
+        matrix_2d = np.array(
+            [
+                [np.cos(angle_radians), -np.sin(angle_radians)],
+                [np.sin(angle_radians), np.cos(angle_radians)],
+            ]
+        )
+        matrix = np.eye(3)
+        matrix[:2, :2] = matrix_2d
+        return matrix
+    else:
+        raise Exception(f"Unknown transform {matrix_string}")
+
+supported_transforms = ["matrix", "scale"]
+
+def is_mergeable(arc1, arc2):
+    connected = arc1.end == arc2.start
+    same_center = (arc1.radius == arc2.radius) and (arc1.rotation == arc2.rotation)
+    same_orientation = (arc1.sweep == arc2.sweep) and (arc1.arc == arc2.arc)
+    return connected and same_center and same_orientation
+
+
+def merge_arcs(arc_list):
+    indices_to_remove = []
+    for i, (arc1, arc2) in enumerate(zip(arc_list[:-1], arc_list[1:])):
+        if is_mergeable(arc1, arc2):
+            arc2.start = arc1.start
+            indices_to_remove.append(i)
+    return [arc for i, arc in enumerate(arc_list) if i not in indices_to_remove]
+
+
+def read_paths_with_transforms(path_strings_and_transforms):
+    lines, all_arcs, arc_transforms = [], [], []
+    for path_string_and_transform in path_strings_and_transforms:
+        path_str, transform = path_string_and_transform
+        path = parse_path(path_str)
+        # print(path)
+        arcs_in_path = []
+        for p in path:
+            if isinstance(p, Line):
+                x0, y0 = p.start.real, p.start.imag
+                x1, y1 = p.end.real, p.end.imag
+                if transform != "":
+                    transform_matrix = parse_matrix_string(transform)
+                    print("line transform matrix", transform_matrix)
+
+                    x0, y0 = (transform_matrix @ np.append(np.array([x0, y0]), 1))[:2]
+                    x1, y1 = (transform_matrix @ np.append(np.array([x1, y1]), 1))[:2]
+
+                line = np.array([x0, y0, x1, y1])
+                if np.linalg.norm(line) > 1e-5:
+                    lines.append(line)
+            elif isinstance(p, Arc):
+                arcs_in_path.append(p)
+        if len(arcs_in_path) > 0:
+            all_arcs.append(merge_arcs(arcs_in_path))
+            arc_transforms.append(transform)
+    return lines, (all_arcs, arc_transforms)
+
+
+def is_large_arc(rad_angle):
+    if rad_angle[0] <= np.pi:
+        return not (rad_angle[0] < rad_angle[1] < (np.pi + rad_angle[0]))
+    return (rad_angle[0] - np.pi) < rad_angle[1] < rad_angle[0]
+
+def get_arc_param_with_tr(arc_path, arc_transform):
+    to_2pi = lambda x: (x + 2 * np.pi) % (2 * np.pi)
+    assert len(arc_path) == 1, f"arc path with more than one arc {arc_path}"
+    arc_path = arc_path[0]
+
+    assert arc_path.sweep, f"arc path with negative sweep {arc_path}"
+    assert arc_path.rotation == 0, f"arc path with non-zero rotation {arc_path}"
+    if arc_path.arc:
+        raise BadPath(f"arc path with large arc {arc_path}")
+    # assert not arc_path.arc, f"arc path with large arc {arc_path}"
+
+    p0 = np.array([arc_path.start.real, arc_path.start.imag])
+    p1 = np.array([arc_path.end.real, arc_path.end.imag])
+    center = np.array([arc_path.center.real, arc_path.center.imag])
+    # print(arc_transform)
+    if arc_transform.startswith("translate"):
+        numbers = re.findall(r"[-+]?\d*\.\d+|[-+]?\d+", arc_transform)
+        numbers = [float(num) for num in numbers]
+
+        if len(numbers) == 1:
+            numbers = numbers.append(0)
+        numbers = np.array(numbers)
+        print("translating with ", numbers)
+        p0 += numbers
+        p1 += numbers
+        center += numbers
+
+    elif arc_transform != "":
+        transform_matrix = parse_matrix_string(arc_transform)
+
+        p0 = (transform_matrix @ np.append(p0, 1))[:2]
+        p1 = (transform_matrix @ np.append(p1, 1))[:2]
+
+        if np.linalg.det(transform_matrix[:2, :2]) < 0:
+            p0, p1 = p1, p0
+
+        center = (transform_matrix @ np.append(center, 1))[:2]
+    if np.abs((np.linalg.norm(p0 - center) / np.linalg.norm(p1 - center)) - 1) > 1e-1:
+        raise BadPath("arc path with non-circular radius", arc_path)
+    # radius = (np.linalg.norm(p0 - center) + np.linalg.norm(p1 - center)) / 2
+    radius = np.linalg.norm(p0 - center)
+
+    start_angle = to_2pi(np.arctan2(p0[1] - center[1], p0[0] - center[0]))
+    end_angle = to_2pi(np.arctan2(p1[1] - center[1], p1[0] - center[0]))
+    large_arc_flag = is_large_arc([start_angle, end_angle])
+
+    if start_angle > end_angle:
+        end_angle += 2 * np.pi
+    # if large_arc_flag:
+    #     mid_angle = start_angle + (end_angle - start_angle) / 2 + np.pi
+    # else:
+    mid_angle = start_angle + (end_angle - start_angle) / 2
+    mid_angle, end_angle = mid_angle % (2 * np.pi), end_angle % (2 * np.pi)
+    p_mid = center + radius * np.array([np.cos(mid_angle), np.sin(mid_angle)])
+    # return p0, p1, center, radius, start_angle, end_angle, mid_angle, p_mid, large_arc_flag
+    return p0, p1, p_mid
 
 
 def line_to_xy(x):
@@ -164,7 +322,6 @@ def is_large_arc(rad_angle):
 
 def find_circle_center(p1, p2, p3):
     """Circle center from 3 points"""
-
     p1_0, p1_1 = p1[0], p1[1]
     p2_0, p2_1 = p2[0], p2[1]
     p3_0, p3_1 = p3[0], p3[1]
@@ -179,6 +336,7 @@ def find_circle_center(p1, p2, p3):
     cx = (bc * (p2_1 - p3_1) - cd * (p1_1 - p2_1)) / det
     cy = ((p1_0 - p2_0) * cd - (p2_0 - p3_0) * bc) / det
     return np.array([cx, cy])
+
 
 def find_circle_center_arr(p1, p2, p3):
     """Circle center from 3 points"""
@@ -347,3 +505,76 @@ def plot_arc(ax, arc, c='r', linewidth=2):
             linewidth=linewidth,
         )
     ax.add_patch(arc_patch_2)
+
+def get_radius(circle):
+    try:
+        r = float(circle.getAttribute("r"))
+    except ValueError as e:
+        try:
+            rx = float(circle.getAttribute("rx"))
+            ry = float(circle.getAttribute("ry"))
+            if np.abs(1 - ry / rx) < 1e-2:
+                r = (rx + ry) / 2
+            else:
+                raise BadPath(f"shape is coded as circle with rx,ry={rx} , {ry}")
+        except Exception as e:
+            print(e)
+            raise BadPath(f"Invalid circle")
+    return r
+
+
+def get_arc_param_from_inkscape(arc_path_object):
+    arc_cx = float(arc_path_object.getAttribute("sodipodi:cx"))
+    arc_cy = float(arc_path_object.getAttribute("sodipodi:cy"))
+    arc_rx = float(arc_path_object.getAttribute("sodipodi:rx"))
+    arc_ry = float(arc_path_object.getAttribute("sodipodi:ry"))
+    arc_start_angle = float(arc_path_object.getAttribute("sodipodi:start"))
+    arc_end_angle = float(arc_path_object.getAttribute("sodipodi:end"))
+
+    # arc_center = np.array([arc_cx, arc_cy])
+    # arc_radius = np.array([arc_rx, arc_ry])
+    p0 = (
+        arc_cx + arc_rx * np.cos(arc_start_angle),
+        arc_cy + arc_ry * np.sin(arc_start_angle),
+    )
+    p1 = (
+        arc_cx + arc_rx * np.cos(arc_end_angle),
+        arc_cy + arc_ry * np.sin(arc_end_angle),
+    )
+    if arc_start_angle > arc_end_angle:
+        arc_end_angle += 2 * np.pi
+    arc_mid_angle = arc_start_angle + (arc_end_angle - arc_start_angle) / 2
+    p_mid = (
+        arc_cx + arc_rx * np.cos(arc_mid_angle),
+        arc_cy + arc_ry * np.sin(arc_mid_angle),
+    )
+    arc_transform = arc_path_object.getAttribute("transform")
+    if arc_transform != "":
+        print(arc_transform)
+        transform_matrix = parse_matrix_string(arc_transform)
+        p0 = (transform_matrix @ np.append(p0, 1))[:2]
+        p1 = (transform_matrix @ np.append(p1, 1))[:2]
+
+        # NOTE: check determinant of the matrix to not change the flag of the arc
+        p_mid = (transform_matrix @ np.append(p_mid, 1))[:2]
+        if np.linalg.det(transform_matrix[:2, :2]) < 0:
+            p0, p1 = p1, p0
+    return p0, p1, p_mid
+    # # TODO: deduce points first because there might be a rotation afterwards
+    # arc_center = (transform_matrix @ np.append(arc_center, 1))[:2]
+    # arc_radius = (transform_matrix @ np.append(arc_radius, 1))[:2]
+    # if np.abs((arc_radius[0] / arc_radius[1]) - 1) > 1e-1:
+    #     raise BadPath("arc path with non-circular radius", arc_radius)
+    # radius = (arc_radius[0] + arc_radius[1]) / 2
+
+    # p0 = (
+    #     arc_center[0] + radius * np.cos(start_angle),
+    #     arc_center[1] + radius * np.sin(start_angle),
+    # )
+    # p1 = (
+    #     arc_center[0] + radius * np.cos(end_angle),
+    #     arc_center[1] + radius * np.sin(end_angle),
+    # )
+
+    # p_mid = (arc_center[0] + radius * np.cos(mid_angle), arc_center[1] + radius * np.sin(mid_angle))
+    # p1 = (arc_center[0] + radius * np.cos(end_angle), arc_center[1] + radius * np.sin(end_angle))
