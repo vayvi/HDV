@@ -22,6 +22,7 @@ from torch import nn
 from torchvision.ops.boxes import nms
 
 from util import box_ops
+from util.logger import SLogger
 from util.misc import (
     NestedTensor,
     nested_tensor_from_tensor_list,
@@ -954,7 +955,7 @@ class PostProcess(nn.Module):
 
 
 @MODULE_BUILD_FUNCS.registe_with_name(module_name="dino")
-def build_dino(args):
+def build_dino(args, logger=None):
     # the `num_classes` naming here is somewhat misleading.
     # it indeed corresponds to `max_obj_id + 1`, where max_obj_id
     # is the maximum id for a class in your dataset. For example,
@@ -974,6 +975,8 @@ def build_dino(args):
     #     num_classes = 51
     num_classes = args.num_classes
     device = torch.device(args.device)
+    if logger is None:
+        logger = SLogger(name="dino")
 
     backbone = build_backbone(args)
 
@@ -1085,8 +1088,8 @@ def build_dino(args):
     losses = ["labels", "parameters", "cardinality"]
     if args.masks:
         losses += ["masks"]
-    print("weight_dict: ", weight_dict)
-    print("compute_giou: ", compute_giou)
+    logger.info(["weight_dict", weight_dict])
+    logger.info(["compute_giou", compute_giou])
     criterion = SetCriterion(
         num_classes,
         matcher=matcher,
