@@ -7,6 +7,7 @@ from xml.dom import minidom
 import numpy as np
 from PIL import Image, ImageDraw
 
+from util import DATA_DIR
 from util.primitives import (
     get_angles_from_arc_points,
     get_arc_param_with_tr,
@@ -18,14 +19,10 @@ from util.primitives import (
 from util.logger import SLogger
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--svg_folder", type=str, help="Folder containing SVG files to process")
-parser.add_argument("--img_folder", type=str, help="Folder containing images files associated with SVG files")
+parser.add_argument("--data_set", default="eida_dataset", type=str, help="Name of the folder containing SVG and images to be used as ground truth")
 parser.add_argument("--sanity_check", action="store_true", help="Create images out of converted annotation to verify correctness")
+parser.add_argument("--train_portion", default=0.8, help="Portion of the dataset used for training (rest is used for validation): between 0 and 1")
 
-data_sets = {
-    "train": 0.8,
-    "val": 0.2,
-}
 
 """
 output.json should have the following format:
@@ -56,10 +53,7 @@ output.json should have the following format:
     ]
 }  
 """
-output = {
-    "images": [],
-    "annotations": [],
-}
+output = { "images": [], "annotations": [] }
 
 def draw_arc(param, img, width_ratio, color="firebrick"):
     p0 = np.array([param[0], param[1]])
@@ -117,20 +111,20 @@ def draw_circle(param, img, width_ratio, color="royalblue"):
 def svg_to_params(svg_path, ellipse_to_circle_ratio_threshold=5 * 1e-2):
     doc = minidom.parse(str(svg_path))
     img_file = os.path.basename(doc.getElementsByTagName("image")[0].getAttribute("xlink:href"))
-    ellipses, circle_r, circle_centers, arc_params = {}, [], [], []
+    circle_r, circle_centers, arc_params = [], [], []
 
-    path_strings_and_transforms = []
+    path_and_transforms = []
     for path in doc.getElementsByTagName("path"):
         transform_string = path.getAttribute("transform")
         try:
             arc_params.append(get_arc_param_from_inkscape(path))
         except ValueError as e:
             if path.getAttribute("d"):
-                path_strings_and_transforms.append(
+                path_and_transforms.append(
                     (path.getAttribute("d"), transform_string)
                 )
             elif path.getAttribute("inkscape:original-d"):
-                path_strings_and_transforms.append(
+                path_and_transforms.append(
                     (path.getAttribute("inkscape:original-d"), transform_string)
                 )
             else:
@@ -174,15 +168,12 @@ def svg_to_params(svg_path, ellipse_to_circle_ratio_threshold=5 * 1e-2):
             circle_r = np.mean(ellipse_r[mask], axis=1)
         ellipse_centers, ellipse_r = ellipse_centers[~mask], ellipse_r[~mask]
         if len(ellipse_centers) > 0:
-            ellipses = {"ellipse_centers": ellipse_centers, "ellipse_radii": ellipse_r}
-            print("############")
-            print(f"svg {svg_path} has ellipses.")
+            logger.info(f"SVG {svg_path} has ellipses.")
+            logger.info({"ellipse_centers": ellipse_centers, "ellipse_radii": ellipse_r})
 
     doc.unlink()
 
-    lines_c, (all_arcs, arc_transforms) = read_paths_with_transforms(
-        path_strings_and_transforms
-    )
+    lines_c, (all_arcs, arc_transforms) = read_paths_with_transforms(path_and_transforms)
 
     for arc_path, arc_transform in zip(all_arcs, arc_transforms):
         arc_params.append(get_arc_param_with_tr(arc_path, arc_transform))
@@ -219,28 +210,59 @@ def svg_to_params(svg_path, ellipse_to_circle_ratio_threshold=5 * 1e-2):
         "circle": circles,
     }, img_file
 
+def save_dataset(set_name, annotations):
+    # save training data annotations
+    with open(finetuning_folder / "annotations" / f"{set_name}.json", "w") as f:
+        json.dump(annotations, f, indent=4)
+
+    dataset_img = finetuning_folder / set_name
+    logger.info(f"""
+    SAVED {set_name.upper()} ANNOTATIONS:
+    Annotations: {len(annotations['annotations'])}
+    Images: {len(annotations['images'])}
+    Files in {dataset_img}: {len(list(dataset_img.glob('*')))}""")
+
+    # reset output annotations
+    return {"images": [], "annotations": []}, "val"
+
 if __name__ == "__main__":
     args = parser.parse_args()
 
-    svg_folder = Path(args.svg_folder)
-    img_folder = Path(args.img_folder)
+    data_folder = DATA_DIR / Path(args.data_set)
+    train_portion = args.train_portion
+    assert train_portion > 0
+    assert train_portion <= 1
+
+    svg_folder = data_folder / "svgs"
+    img_folder = data_folder / "images"
+    finetuning_folder = data_folder / "finetuning"
+
+    # Create finetuning data folder structure
+    Path(finetuning_folder).mkdir(parents=True, exist_ok=True)
+    for folder in ["annotations", "train", "val"]:
+        Path(finetuning_folder / folder).mkdir(parents=True, exist_ok=True)
 
     logger = SLogger(
         name="convert_svg",
         log_file=svg_folder / f"logs_svg_to_train.txt",
     )
 
-    if not svg_folder.exists():
-        raise FileNotFoundError(f"Folder {svg_folder} does not exist")
+    for folder in [data_folder, svg_folder, img_folder]:
+        if not folder.exists():
+            raise FileNotFoundError(f"Folder {folder} does not exist")
 
     svg_files = list(svg_folder.glob("*.svg"))
     if len(svg_files) == 0:
         raise FileNotFoundError(f"No SVG files found in {svg_folder}")
 
-    train_json = svg_folder / "train.json"
-    val_json = svg_folder / "val.json"
+    total = len(svg_files)
+    logger.info(f"Found {total} SVG files in {svg_folder}")
+    data_set = "train"
 
     for nb, file in enumerate(svg_files):
+        if nb / total > train_portion and data_set == "train":
+            output, data_set = save_dataset(data_set, output)
+
         # TODO check that the file contains an image that exists
         try:
             params, img_name = svg_to_params(file)
@@ -248,12 +270,18 @@ if __name__ == "__main__":
             logger.error(f"Error processing {file}", e)
             continue
 
-        img = Image.open(img_folder / img_name).convert("RGB")
+        try:
+            img = Image.open(img_folder / img_name).convert("RGB")
+        except Exception as e:
+            logger.error(f"Error with image {img_folder / img_name}", e)
+            continue
+
+        img.save(finetuning_folder / data_set / img_name)
         h, w = img.size
 
         output["images"].append(
             {
-                "file_name": str(img_folder / img_name),
+                "file_name": str(finetuning_folder / data_set / img_name),
                 "height": h,
                 "width": w,
                 "id": nb,
@@ -283,7 +311,6 @@ if __name__ == "__main__":
             for circle in params["circle"]:
                 draw_circle(circle, img1, width_ratio)
 
-            img.save(svg_folder / f"{img_name}_out.png")
+            img.save(svg_folder / f"{img_name.split('.')[0]}_out.png")
 
-    with open(train_json, "w") as f:
-        json.dump(output, f, indent=4)
+    save_dataset(data_set, output)

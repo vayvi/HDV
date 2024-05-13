@@ -104,7 +104,7 @@ def build_model_main(args):
 def main(args):
     utils.init_distributed_mode(args)
     # load cfg file and update the args
-    print("Loading config file from {}".format(args.config_file))
+    print(f"Loading config file from {args.config_file}")
     time.sleep(args.rank * 0.02)
     cfg = SLConfig.fromfile(args.config_file)
     if args.options is not None:
@@ -146,17 +146,17 @@ def main(args):
         color=False,
         name="detr",
     )
-    logger.info("git:\n  {}\n".format(utils.get_sha()))
-    logger.info("Command: " + " ".join(sys.argv))
+    logger.info(f"git:\n  {utils.get_sha()}\n")
+    logger.info(f"Command: {' '.join(sys.argv)}")
     if args.rank == 0:
         save_json_path = os.path.join(args.output_dir, "config_args_all.json")
         with open(save_json_path, "w") as f:
             json.dump(vars(args), f, indent=2)
-        logger.info("Full config saved to {}".format(save_json_path))
-    logger.info("world size: {}".format(args.world_size))
-    logger.info("rank: {}".format(args.rank))
-    logger.info("local_rank: {}".format(args.local_rank))
-    logger.info("args: " + str(args) + "\n")
+        logger.info(f"Full config saved to {save_json_path}")
+    logger.info(f"world size: {args.world_size}")
+    logger.info(f"rank: {args.rank}")
+    logger.info(f"local_rank: {args.local_rank}")
+    logger.info(f"args: {args}\n")
 
     if args.frozen_weights is not None:
         assert args.masks, "Frozen training is meant for segmentation only"
@@ -176,19 +176,18 @@ def main(args):
     model.to(device)
 
     # ema
-    if args.use_ema:
-        ema_m = ModelEma(model, args.ema_decay)
-    else:
-        ema_m = None
+    ema_m = ModelEma(model, args.ema_decay) if args.use_ema else None
 
     model_without_ddp = model
     if args.distributed:
         model = torch.nn.parallel.DistributedDataParallel(
-            model, device_ids=[args.gpu], find_unused_parameters=args.find_unused_params
+            model,
+            device_ids=[args.gpu],
+            find_unused_parameters=args.find_unused_params
         )
         model_without_ddp = model.module
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    logger.info("number of params:" + str(n_parameters))
+    logger.info(f"number of params: {n_parameters}")
     logger.info(
         "params:\n"
         + json.dumps(
@@ -243,7 +242,8 @@ def main(args):
         )
     elif args.multi_step_lr:
         lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(
-            optimizer, milestones=args.lr_drop_list
+            optimizer,
+            milestones=args.lr_drop_list
         )
     else:
         lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.lr_drop)
@@ -260,7 +260,9 @@ def main(args):
     if args.resume:
         if args.resume.startswith("https"):
             checkpoint = torch.hub.load_state_dict_from_url(
-                args.resume, map_location="cpu", check_hash=True
+                args.resume,
+                map_location="cpu",
+                check_hash=True
             )
         else:
             checkpoint = torch.load(args.resume, map_location="cpu")
@@ -298,7 +300,7 @@ def main(args):
                     return False
             return True
 
-        logger.info("Ignore keys: {}".format(json.dumps(ignorelist, indent=2)))
+        logger.info(f"Ignore keys: {json.dumps(ignorelist, indent=2)}")
         _tmp_st = OrderedDict(
             {
                 k: v
@@ -365,18 +367,18 @@ def main(args):
             ema_m=ema_m,
             run=run,
         )
-        if args.output_dir:
-            checkpoint_paths = [output_dir / "checkpoint.pth"]
+        # if args.output_dir:
+        #     checkpoint_paths = [output_dir / "checkpoint.pth"]
 
         if not args.onecyclelr:
             lr_scheduler.step()
+
         if args.output_dir:
             checkpoint_paths = [output_dir / "checkpoint.pth"]
             # extra checkpoint before LR drop and every 100 epochs
-            if (epoch + 1) % args.lr_drop == 0 or (
-                epoch + 1
-            ) % args.save_checkpoint_interval == 0:
+            if (epoch + 1) % args.lr_drop == 0 or (epoch + 1) % args.save_checkpoint_interval == 0:
                 checkpoint_paths.append(output_dir / f"checkpoint{epoch:04}.pth")
+
             for checkpoint_path in checkpoint_paths:
                 weights = {
                     "model": model_without_ddp.state_dict(),
@@ -463,7 +465,7 @@ def main(args):
 
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
-    print("Training time {}".format(total_time_str))
+    print(f"Training time {total_time_str}")
 
     # remove the copied files.
     copyfilelist = vars(args).get("copyfilelist")
@@ -471,7 +473,7 @@ def main(args):
         from datasets.data_util import remove
 
         for filename in copyfilelist:
-            print("Removing: {}".format(filename))
+            print(f"Removing: {filename}")
             remove(filename)
 
 

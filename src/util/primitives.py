@@ -222,7 +222,7 @@ def read_paths_with_transforms(path_strings_and_transforms):
                 x1, y1 = p.end.real, p.end.imag
                 if transform != "":
                     transform_matrix = parse_matrix_string(transform)
-                    print("line transform matrix", transform_matrix)
+                    # print("line transform matrix", transform_matrix)
 
                     x0, y0 = (transform_matrix @ np.append(np.array([x0, y0]), 1))[:2]
                     x1, y1 = (transform_matrix @ np.append(np.array([x1, y1]), 1))[:2]
@@ -548,7 +548,7 @@ def get_arc_param_from_inkscape(arc_path_object):
     )
     arc_transform = arc_path_object.getAttribute("transform")
     if arc_transform != "":
-        print(arc_transform)
+        # print(arc_transform)
         transform_matrix = parse_matrix_string(arc_transform)
         p0 = (transform_matrix @ np.append(p0, 1))[:2]
         p1 = (transform_matrix @ np.append(p1, 1))[:2]

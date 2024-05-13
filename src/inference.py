@@ -399,7 +399,7 @@ if __name__ == "__main__":
         preds = generate_prediction(orig_img, tr_img, model)
 
         if "img" in formats:
-            # DO NOT WORK: correct by copying logic of inference notebook
+            # DO NOT WORK: fix by copying logic of inference notebook
             # for prim in prim_list:
             #     info = prim_info[prim]
             #     pred = preds['parameters'][:, info["indices"]]

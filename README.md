@@ -137,7 +137,7 @@ You should get the AP for different primitives and for different distance thresh
 
   <summary>2. Inference and Visualization</summary>
 
-For inference and visualizing results over custom images, you can use the [notebook](src/notebooks/inference.ipynb).
+For inference and visualizing results over custom images, you can use this [notebook](src/notebooks/inference.ipynb).
 
 You can also use the following script to run inference on a whole dataset (jpg images located in `data/<data_folder_name>/images/`):
 ```bash
@@ -154,6 +154,7 @@ Results will be saved in `data/<data_folder_name>/<export_format>_preds_<model_n
 # Training
 <details>
   <summary>1. Training from scratch on synthetic data</summary>
+
 To re-train the model from scratch on the synthetic dataset, you can launch 
 
 ```bash
@@ -165,30 +166,39 @@ bash scripts/train_model.sh config/
   <summary>2. Training on a custom dataset</summary>
 
 Turn SVG files into COCO-like annotations using the following script:
-- `svg_folder` path to folder containing SVG files containing ground truth for training
-- `img_folder` path to folder containing images corresponding to the SVG files
-- `sanity_check` add it whether you want to visualize the processed annotations
+- `data_set` folder inside `data/` where the evaluation dataset is located (default to `eida_dataset`)
+- `sanity_check` add it whether you want to visualize the processed annotations (will save the images in `data/<data_set>/svgs/`)
+- `train_portion` float value in between 0 and 1 to split the dataset into train and val (default to `0.8`)
 
 ```bash
-python src/svg_to_train.py --svg_folder <svg_folder> --img_folder <img_folder> --sanity_check
-
-# for eida_dataset
-python src/svg_to_train.py --svg_folder data/eida_dataset/images_and_svgs --img_folder data/eida_dataset/images_and_svgs --sanity_check
+  data/
+    └── <dataset_name>/
+      └── images/     # folder containing annotated images in the svgs folder
+      └── svgs/       # folder containing SVG files containing ground truth for training
 ```
 
+```bash
+python src/svg_to_train.py --data_set <dataset_name> --sanity_check
+
+# for eida_dataset
+python src/svg_to_train.py --data_set eida_dataset --sanity_check
+```
+
+Training data will be created in `data/<dataset_name>/finetuning/`. You can use it to run the following script for training.
 To train on a custom dataset, the custom dataset annotations should be in a COCO-like format, and should be in 
 
 ```bash
   data/
-    └── custom_dataset_processed/
-      └── annotations/
-      └── train/
-      └── val/
+    └── <custom_dataset_processed>/
+      └── annotations/     # folder containing JSON files (one for train, one for val) in COCO-like format
+      └── train/           # train images (corresponding to train.json)
+      └── val/             # val images (corresponding to val.json)
 ```
-You should then adjust the coco_path variable to `custom_dataset_processed` in the [config](src/config/DINO_4scale.py) file.
+You should then adjust the `coco_path` variable to `custom_dataset_processed` in the [config](src/config/DINO_4scale.py) file.
 </details>
 
 # Bibtex
+
 If you find this work useful, please consider citing:
 
 ```
