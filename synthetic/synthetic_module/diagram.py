@@ -39,6 +39,7 @@ SAME_RADIUS_CIRCLES_RATIO = 0.1
 COLORED_FREQ = 0.8
 
 
+# NOTE identical from src/util/primitives.py find_circle_center()
 def find_circle_center(p1, p2, p3):
     """Circle center from 3 points"""
     temp = p2[0] * p2[0] + p2[1] * p2[1]
@@ -53,6 +54,7 @@ def find_circle_center(p1, p2, p3):
     return np.array([cx, cy])
 
 
+# NOTE identical from src/util/primitives.py get_angles_from_arc_points()
 def get_angles_from_arc_points(p0, p_mid, p1):
     arc_center = find_circle_center(p0, p_mid, p1)
     arc_center = (arc_center[0], arc_center[1])

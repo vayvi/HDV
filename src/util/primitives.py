@@ -7,13 +7,20 @@ from svg.path import parse_path
 from svg.path.path import Line, Move, Arc
 
 
+PRIM_INFO = {
+    'line': {'id': 0, 'color': 'red', 'line_width': 1, 'indices': slice(0, 4), 'param_shape': (-1, 2, 2)},
+    'circle': {'id': 1, 'color': 'green', 'line_width': 1, 'indices': slice(4, 8), 'param_shape': (-1, 3)},
+    'arc': {'id': 2, 'color': 'blue', 'line_width': 1, 'indices': slice(8, 14), 'param_shape': (-1, 3, 2)}
+}
+
+
 class BadPath(Exception):
     pass
 
 
 def get_angles_from_arc_points(p0, p_mid, p1):
     arc_center = find_circle_center(p0, p_mid, p1)
-    arc_center = (arc_center[0], arc_center[1])
+    arc_center = (arc_center[0], arc_center[1]) # NOTE some versions don't have this line
     start_angle = np.arctan2(p0[1] - arc_center[1], p0[0] - arc_center[0])
     end_angle = np.arctan2(p1[1] - arc_center[1], p1[0] - arc_center[0])
     mid_angle = np.arctan2(p_mid[1] - arc_center[1], p_mid[0] - arc_center[0])
@@ -236,6 +243,7 @@ def is_large_arc(rad_angle):
         return not (rad_angle[0] < rad_angle[1] < (np.pi + rad_angle[0]))
     return (rad_angle[0] - np.pi) < rad_angle[1] < rad_angle[0]
 
+
 def get_arc_param_with_tr(arc_path, arc_transform):
     to_2pi = lambda x: (x + 2 * np.pi) % (2 * np.pi)
     assert len(arc_path) == 1, f"arc path with more than one arc {arc_path}"
@@ -314,27 +322,17 @@ def arc_to_xy(x):
     x_mid, y_mid = cx + w_mid / 2, cy + h_mid / 2
     return x0, y0, x1, y1, x_mid, y_mid
 
-
-def is_large_arc(rad_angle):
-    if rad_angle[0] <= np.pi:
-        return not (rad_angle[0] < rad_angle[1] < (np.pi + rad_angle[0]))
-    return (rad_angle[0] - np.pi) < rad_angle[1] < rad_angle[0]
-
 def find_circle_center(p1, p2, p3):
     """Circle center from 3 points"""
-    p1_0, p1_1 = p1[0], p1[1]
-    p2_0, p2_1 = p2[0], p2[1]
-    p3_0, p3_1 = p3[0], p3[1]
-
-    temp = p2_0 * p2_0 + p2_1 * p2_1
-    bc = (p1_0 * p1_0 + p1_1 * p1_1 - temp) / 2
-    cd = (temp - p3_0 * p3_0 - p3_1 * p3_1) / 2
-    det = (p1_0 - p2_0) * (p2_1 - p3_1) - (p2_0 - p3_0) * (p1_1 - p2_1)
+    temp = p2[0] * p2[0] + p2[1] * p2[1]
+    bc = (p1[0] * p1[0] + p1[1] * p1[1] - temp) / 2
+    cd = (temp - p3[0] * p3[0] - p3[1] * p3[1]) / 2
+    det = (p1[0] - p2[0]) * (p2[1] - p3[1]) - (p2[0] - p3[0]) * (p1[1] - p2[1])
     if abs(det) < 1.0e-10:
         return (None, None)
 
-    cx = (bc * (p2_1 - p3_1) - cd * (p1_1 - p2_1)) / det
-    cy = ((p1_0 - p2_0) * cd - (p2_0 - p3_0) * bc) / det
+    cx = (bc * (p2[1] - p3[1]) - cd * (p1[1] - p2[1])) / det
+    cy = ((p1[0] - p2[0]) * cd - (p2[0] - p3[0]) * bc) / det
     return np.array([cx, cy])
 
 

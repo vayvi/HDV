@@ -13,7 +13,7 @@ from util.logger import SLogger
 from util import MODEL_DIR, DEFAULT_CONF, DATA_DIR
 from util.slconfig import SLConfig, DictAction
 from util.visualizer import COCOVisualizer
-from util.primitives import get_arc_param, write_svg_dwg, line_to_xy, circle_to_xy, arc_to_xy, remove_duplicate_lines, \
+from util.primitives import PRIM_INFO, get_arc_param, write_svg_dwg, line_to_xy, circle_to_xy, arc_to_xy, remove_duplicate_lines, \
     remove_small_lines, remove_duplicate_circles, remove_duplicate_arcs, remove_arcs_on_top_of_circles, \
     remove_arcs_on_top_of_lines
 import datasets.transforms as T
@@ -57,12 +57,7 @@ parser.add_argument(
     help="Format to export the predictions in, default: img, svg, npz",
 )
 
-prim_info = {
-    'line': {'color': 'red', 'line_width': 1, 'indices': slice(0, 4), 'param_shape': (-1, 2, 2)},
-    'circle': {'color': 'green', 'line_width': 1, 'indices': slice(4, 8), 'param_shape': (-1, 3)},
-    'arc': {'color': 'blue', 'line_width': 1, 'indices': slice(8, 14), 'param_shape': (-1, 3, 2)}
-}
-prim_list = list(prim_info.keys())
+prim_list = list(PRIM_INFO.keys())
 
 def preprocess_img(img_path):
     image = Image.open(img_path).convert("RGB")
@@ -87,7 +82,7 @@ def scale_positions(prims, heatmap_scale=(128, 128), im_shape=None):
 
 
 def prim_to_xy(prim_type, p_preds):
-    p_info = prim_info[prim_type]
+    p_info = PRIM_INFO[prim_type]
     p_preds = p_preds[:, p_info["indices"]].cpu().numpy()
 
     if prim_type == "line":

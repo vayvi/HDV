@@ -21,46 +21,7 @@ from pycocotools import mask as maskUtils
 from matplotlib import transforms
 import matplotlib.cm as cm
 from .box_ops import arc_cxcywh2_to_xy3
-
-
-def find_circle_center(p1, p2, p3):
-    """Circle center from 3 points"""
-    # print(p1, p2, p3)
-    temp = p2[0] * p2[0] + p2[1] * p2[1]
-    bc = (p1[0] * p1[0] + p1[1] * p1[1] - temp) / 2
-    cd = (temp - p3[0] * p3[0] - p3[1] * p3[1]) / 2
-    det = (p1[0] - p2[0]) * (p2[1] - p3[1]) - (p2[0] - p3[0]) * (p1[1] - p2[1])
-    if abs(det) < 1.0e-10:
-        return (None, None)
-
-    cx = (bc * (p2[1] - p3[1]) - cd * (p1[1] - p2[1])) / det
-    cy = ((p1[0] - p2[0]) * cd - (p2[0] - p3[0]) * bc) / det
-    return np.array([cx, cy])
-
-
-def get_angles_from_arc_points(p0, p_mid, p1):
-    arc_center = find_circle_center(p0, p_mid, p1)
-    arc_center = (arc_center[0], arc_center[1])
-    start_angle = np.arctan2(p0[1] - arc_center[1], p0[0] - arc_center[0])
-    end_angle = np.arctan2(p1[1] - arc_center[1], p1[0] - arc_center[0])
-    mid_angle = np.arctan2(p_mid[1] - arc_center[1], p_mid[0] - arc_center[0])
-    return start_angle, mid_angle, end_angle, arc_center
-
-
-def get_arc_plot_params(arc):
-    start_angle, mid_angle, end_angle, arc_center = get_angles_from_arc_points(
-        arc[:2],
-        arc[4:],
-        arc[2:4],
-    )
-    diameter = 2 * np.linalg.norm(arc[:2] - arc_center)
-    to_deg = lambda x: (x * 180 / np.pi) % 360
-    start_angle, mid_angle, end_angle = (
-        to_deg(start_angle),
-        to_deg(mid_angle),
-        to_deg(end_angle),
-    )
-    return start_angle, mid_angle, end_angle, arc_center, diameter
+from .primitives import get_arc_plot_params
 
 
 def renorm(

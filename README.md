@@ -163,6 +163,19 @@ bash scripts/train_model.sh config/
 
 <details>
   <summary>2. Training on a custom dataset</summary>
+
+Turn SVG files into COCO-like annotations using the following script:
+- `svg_folder` path to folder containing SVG files containing ground truth for training
+- `img_folder` path to folder containing images corresponding to the SVG files
+- `sanity_check` add it whether you want to visualize the processed annotations
+
+```bash
+python src/svg_to_train.py --svg_folder <svg_folder> --img_folder <img_folder> --sanity_check
+
+# for eida_dataset
+python src/svg_to_train.py --svg_folder data/eida_dataset/images_and_svgs --img_folder data/eida_dataset/images_and_svgs --sanity_check
+```
+
 To train on a custom dataset, the custom dataset annotations should be in a COCO-like format, and should be in 
 
 ```bash
