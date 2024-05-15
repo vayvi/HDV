@@ -243,7 +243,7 @@ def predict(image_path, output_dir, model, logger):
     ET.register_namespace('sodipodi', "http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd")
     ET.register_namespace('inkscape', "http://www.inkscape.org/namespaces/inkscape")
 
-    input_folder = output_dir
+    # input_folder = output_dir
     file_name = output_dir / f"{im_name}.svg"
     tree = ET.parse(file_name)
     root = tree.getroot()

@@ -212,7 +212,7 @@ def svg_to_params(svg_path, ellipse_to_circle_ratio_threshold=5 * 1e-2):
 
 def save_dataset(set_name, annotations):
     # save training data annotations
-    with open(finetuning_folder / "annotations" / f"{set_name}.json", "w") as f:
+    with open(finetuning_folder / "annotations" / f"primitives_{set_name}.json", "w") as f:
         json.dump(annotations, f, indent=4)
 
     dataset_img = finetuning_folder / set_name

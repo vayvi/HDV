@@ -529,6 +529,9 @@ def get_arc_param_from_inkscape(arc_path_object):
     arc_start_angle = float(arc_path_object.getAttribute("sodipodi:start"))
     arc_end_angle = float(arc_path_object.getAttribute("sodipodi:end"))
 
+    # for attr in ["cx", "cy", "rx", "ry", "start", "end"]:
+    #      arc_path_object.removeAttribute(f"sodipodi:{attr}")
+
     # arc_center = np.array([arc_cx, arc_cy])
     # arc_radius = np.array([arc_rx, arc_ry])
     p0 = (

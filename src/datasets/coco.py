@@ -15,6 +15,7 @@ from synthetic_module.synthetic import SyntheticDiagram
 from synthetic_module import DEFAULT_WIDTH, DEFAULT_HEIGHT, SYNTHETIC_RESRC_PATH
 from torchvision.datasets.vision import VisionDataset
 from util.box_ops import box_xyxy_to_cxcywh_abs, get_box_from_arcs
+from util.logger import SLogger
 
 
 class CocoDetectionOnTheFly(VisionDataset):
@@ -173,7 +174,7 @@ def make_coco_transforms(image_set, args):
 
     scales = [512, 544, 576, 608, 640, 672, 680, 690, 704, 736, 768, 788, 800]
     test_size = 1100
-    max = 1333
+    max = 750 #1333
 
     if args.eval:
         return T.Compose(
@@ -213,11 +214,15 @@ def make_coco_transforms(image_set, args):
 
 
 def build(image_set, args):
+    logger = SLogger(
+        name="build-dataset",
+    )
+
+
     root = Path(args.coco_path)
     if not args.on_the_fly:
         assert root.exists(), f"provided COCO path {root} does not exist"
-    mode = "primitives" if "synthetic" in str(root) else "instances"
-    print("##################", str(root))
+    mode = "primitives"
     if args.on_the_fly and ("train" in image_set):
         dataset = CocoDetectionOnTheFly(
             transforms=make_coco_transforms(image_set, args),
@@ -226,7 +231,7 @@ def build(image_set, args):
         )
 
         return dataset
-    elif args.on_the_fly_val and ("val" in image_set):
+    elif hasattr(args, 'on_the_fly_val') and args.on_the_fly_val and ("val" in image_set):
         dataset = CocoDetectionOnTheFly(
             transforms=make_coco_transforms(image_set, args),
             args=args,

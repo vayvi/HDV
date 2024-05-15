@@ -18,7 +18,6 @@ from util.slconfig import DictAction, SLConfig
 from util.utils import ModelEma, BestMetricHolder
 import util.misc as utils
 
-import datasets
 from datasets import build_dataset, get_coco_api_from_dataset
 from engine import evaluate, train_one_epoch
 
@@ -60,7 +59,9 @@ def get_args_parser():
     parser.add_argument("--pretrain_model_path", help="load from other checkpoint")
     # Layers where weights are kept (usually first layers that are less specialized)
     parser.add_argument("--finetune_ignore", type=str, nargs="+")
-
+    parser.add_argument("--use_wandb", action="store_true")
+    # parser.add_argument("--batch_size", default=2, type=int, help="Batch size")
+    # parser.add_argument("--on_the_fly", type=bool, default=True, help="Use synthetic data created on the fly")
 
     parser.add_argument(
         "--start_epoch", default=0, type=int, metavar="N", help="start epoch"
@@ -103,10 +104,12 @@ def build_model_main(args):
 
 def main(args):
     utils.init_distributed_mode(args)
+    time.sleep(args.rank * 0.02)
+
     # load cfg file and update the args
     print(f"Loading config file from {args.config_file}")
-    time.sleep(args.rank * 0.02)
     cfg = SLConfig.fromfile(args.config_file)
+
     if args.options is not None:
         cfg.merge_from_dict(args.options)
     if args.rank == 0:
@@ -121,13 +124,16 @@ def main(args):
         if k not in args_vars:
             setattr(args, k, v)
         else:
-            raise ValueError("Key {} can used by args only".format(k))
+            raise ValueError(f"Key {f} can used by args only")
+
     if args.use_wandb:
         import wandb
-
-        run = wandb.init(
-            project="dino-primitives", config=cfg_dict, notes=args.output_dir#, entity="<your-wandb-username>"
-        )
+        # run = wandb.init(
+        #     project="dino-primitives",
+        #     config=cfg_dict,
+        #     notes=args.output_dir,
+        # )
+        run = None
     else:
         run = None
 
@@ -137,7 +143,6 @@ def main(args):
     if not getattr(args, "debug", None):
         args.debug = False
 
-    # MARKER in case of fine-tuning, create new folder for the new model
     os.makedirs(args.output_dir, exist_ok=True)
 
     logger = setup_logger(
@@ -160,7 +165,6 @@ def main(args):
 
     if args.frozen_weights is not None:
         assert args.masks, "Frozen training is meant for segmentation only"
-    print(args)
 
     device = torch.device(args.device)
 
@@ -288,6 +292,7 @@ def main(args):
 
     if (not args.resume) and args.pretrain_model_path:
         checkpoint = torch.load(args.pretrain_model_path, map_location="cpu")["model"]
+
         from collections import OrderedDict
 
         _ignorekeywordlist = args.finetune_ignore if args.finetune_ignore else []
