@@ -18,3 +18,4 @@ svgwrite
 
 notebook
 wandb
+gpustat

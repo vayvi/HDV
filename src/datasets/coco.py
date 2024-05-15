@@ -15,7 +15,7 @@ from synthetic_module.synthetic import SyntheticDiagram
 from synthetic_module import DEFAULT_WIDTH, DEFAULT_HEIGHT, SYNTHETIC_RESRC_PATH
 from torchvision.datasets.vision import VisionDataset
 from util.box_ops import box_xyxy_to_cxcywh_abs, get_box_from_arcs
-from util.logger import SLogger
+from util.logger import SLogger, pprint
 
 
 class CocoDetectionOnTheFly(VisionDataset):
@@ -148,7 +148,6 @@ class ConvertCocoPolysToMask(object):
         target["boxes"] = torch.cat(
             [target[f"{primitive}_boxes"] for primitive in primitives]
         )
-
         target["image_id"] = image_id
         target["iscrowd"] = torch.zeros(len(anno))
         target["area"] = torch.cat(
@@ -174,7 +173,8 @@ def make_coco_transforms(image_set, args):
 
     scales = [512, 544, 576, 608, 640, 672, 680, 690, 704, 736, 768, 788, 800]
     test_size = 1100
-    max = 750 #1333
+    # MARKER maximal size of the longer image side (reduce to prevent CUDA out of memory)
+    max = 1100 # 850 #1333
 
     if args.eval:
         return T.Compose(
@@ -218,7 +218,6 @@ def build(image_set, args):
         name="build-dataset",
     )
 
-
     root = Path(args.coco_path)
     if not args.on_the_fly:
         assert root.exists(), f"provided COCO path {root} does not exist"
@@ -246,7 +245,7 @@ def build(image_set, args):
         }
     else:
         PATHS = {
-            # "train": (root / "train", root / "annotations" / f"{mode}_train.json"),
+            "train": (root / "train", root / "annotations" / f"{mode}_train.json"),
             "val": (root / "val", root / "annotations" / f"{mode}_val.json"),
         }
 

@@ -7,7 +7,7 @@ source "$ROOT_DIR"/venv/bin/activate
 
 model_name=${1:-"main_model"}
 groundtruth=$2
-device_nb=${2:-0}
+device_nb=${3:-0}
 batch_size=${4:-2}
 
 export CUDA_VISIBLE_DEVICES=$device_nb
@@ -52,4 +52,4 @@ fi
 echo -e "\n\033[1;93mFinetuning $model_file with $data_dir\033[0m\n"
 
 cd "$ROOT_DIR"/src
-python main.py --pretrain_model_path "$model_dir/$model_file" --config_file "$config_file" --output_dir "$ROOT_DIR"/logs/"$model_name"_finetuned --coco_path "$data_dir" --use_wandb --option batch_size=$batch_size on_the_fly=False
+python main.py --pretrain_model_path "$model_dir/$model_file" --config_file "$config_file" --output_dir "$ROOT_DIR"/logs/"$model_name"_finetuned --coco_path "$data_dir" --options batch_size=$batch_size on_the_fly=False --use_wandb

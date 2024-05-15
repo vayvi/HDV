@@ -60,8 +60,6 @@ def get_args_parser():
     # Layers where weights are kept (usually first layers that are less specialized)
     parser.add_argument("--finetune_ignore", type=str, nargs="+")
     parser.add_argument("--use_wandb", action="store_true")
-    # parser.add_argument("--batch_size", default=2, type=int, help="Batch size")
-    # parser.add_argument("--on_the_fly", type=bool, default=True, help="Use synthetic data created on the fly")
 
     parser.add_argument(
         "--start_epoch", default=0, type=int, metavar="N", help="start epoch"
@@ -128,12 +126,11 @@ def main(args):
 
     if args.use_wandb:
         import wandb
-        # run = wandb.init(
-        #     project="dino-primitives",
-        #     config=cfg_dict,
-        #     notes=args.output_dir,
-        # )
-        run = None
+        run = wandb.init(
+            project="dino-primitives",
+            config=cfg_dict,
+            notes=args.output_dir,
+        )
     else:
         run = None
 

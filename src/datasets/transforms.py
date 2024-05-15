@@ -89,10 +89,14 @@ def get_out_of_bounds_mask(cropped_primitive, h, w):
 def instance_aware_crop(image, target):
     h, w = target["size"]
 
-    if "circles" in target:
+    circles = target["circles"] if "circles" in target and len(target["circles"]) else None
+    lines = target["lines"] if "lines" in target and len(target["lines"]) else None
+    arcs = target["arcs"] if "arcs" in target and target["arcs"].shape[0] > 0 else None
+
+    if circles is not None:
         x_borders_circles, y_borders_circles = (
-            target["circles"][:, [0, 2]],
-            target["circles"][:, [1, 3]],
+            circles[:, [0, 2]],
+            circles[:, [1, 3]],
         )
         min_circle_x, max_circle_x = x_borders_circles.min(), x_borders_circles.max()
         min_circle_y, max_circle_y = y_borders_circles.min(), y_borders_circles.max()
@@ -100,10 +104,10 @@ def instance_aware_crop(image, target):
         min_circle_x, min_circle_y = w, h
         max_circle_x, max_circle_y = torch.tensor(0), torch.tensor(0)
 
-    if "lines" in target:
+    if lines is not None:
         x_borders_lines, y_borders_lines = (
-            target["lines"][:, [0, 2]],
-            target["lines"][:, [1, 3]],
+            lines[:, [0, 2]],
+            lines[:, [1, 3]],
         )
         min_line_x, max_line_x = x_borders_lines.min(), x_borders_lines.max()
         min_line_y, max_line_y = y_borders_lines.min(), y_borders_lines.max()
@@ -111,9 +115,9 @@ def instance_aware_crop(image, target):
         min_line_x, min_line_y = w, h
         max_line_x, max_line_y = torch.tensor(0), torch.tensor(0)
 
-    if ("arcs" in target) and (target["arcs"].shape[0] > 0):
-        borders_x = target["arcs"][:, [0, 2, 4]]
-        borders_y = target["arcs"][:, [1, 3, 5]]
+    if arcs is not None:
+        borders_x = arcs[:, [0, 2, 4]]
+        borders_y = arcs[:, [1, 3, 5]]
         min_arc_x, min_arc_y = borders_x.min(), borders_y.min()
         max_arc_x, max_arc_y = borders_x.max(), borders_y.max()
     else:

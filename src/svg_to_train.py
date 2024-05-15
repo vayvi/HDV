@@ -235,7 +235,7 @@ if __name__ == "__main__":
 
     svg_folder = data_folder / "svgs"
     img_folder = data_folder / "images"
-    finetuning_folder = data_folder / "finetuning"
+    finetuning_folder = data_folder / "groundtruth"
 
     # Create finetuning data folder structure
     Path(finetuning_folder).mkdir(parents=True, exist_ok=True)
@@ -263,7 +263,6 @@ if __name__ == "__main__":
         if nb / total > train_portion and data_set == "train":
             output, data_set = save_dataset(data_set, output)
 
-        # TODO check that the file contains an image that exists
         try:
             params, img_name = svg_to_params(file)
         except Exception as e:
@@ -294,7 +293,7 @@ if __name__ == "__main__":
                         "id": f"{nb}_{prim_id}",
                         "category_id": PRIM_INFO[prim_type]["id"],
                         "image_id": nb,
-                        "parameters": p,
+                        f"{prim_type}": p,
                     }
                 )
 
