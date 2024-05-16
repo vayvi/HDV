@@ -171,16 +171,16 @@ def make_coco_transforms(image_set, args):
         ]
     )
 
-    scales = [512, 544, 576, 608, 640, 672, 680, 690, 704, 736, 768, 788, 800]
+    scales = args.data_aug_scales or [512, 544, 576, 608, 640, 672, 680, 690, 704, 736, 768, 788, 800]
     test_size = 1100
-    # MARKER maximal size of the longer image side (reduce to prevent CUDA out of memory)
-    max = 1100 # 850 #1333
+    # maximal size of the longer image side (reduce to prevent CUDA out of memory)
+    max_size = args.data_aug_max_size or 1333
 
     if args.eval:
         return T.Compose(
             [
                 T.InstanceAwareCrop(),
-                T.RandomResize([test_size], max_size=max),
+                T.RandomResize([test_size], max_size=max_size),
                 normalize,
             ]
         )
@@ -198,14 +198,14 @@ def make_coco_transforms(image_set, args):
                     ),
                     T.RandomResize([500, 600]),
                     T.InstanceAwareCrop(),
-                    T.RandomResize(scales, max_size=max),
+                    T.RandomResize(scales, max_size=max_size),
                     normalize,
                 ]
             )
         if image_set == "val":
             return T.Compose(
                 [
-                    T.RandomResize([test_size], max_size=max),
+                    T.RandomResize([test_size], max_size=max_size),
                     normalize,
                 ]
             )
@@ -214,10 +214,6 @@ def make_coco_transforms(image_set, args):
 
 
 def build(image_set, args):
-    logger = SLogger(
-        name="build-dataset",
-    )
-
     root = Path(args.coco_path)
     if not args.on_the_fly:
         assert root.exists(), f"provided COCO path {root} does not exist"

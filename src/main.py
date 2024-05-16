@@ -410,15 +410,17 @@ def main(args):
             args=args,
             logger=(logger if args.save_log else None),
         )
-        new_test_stats = {
-            f"test_{k}": v
-            for k, v in test_stats.items()
-            if not any(str(d) in k for d in range(5))
-        }
+        # new_test_stats = {
+        #     f"test_{k}": v
+        #     for k, v in test_stats.items()
+        #     if not any(str(d) in k for d in range(5))
+        # }
         log_stats = {
             **{f"train_{k}": v for k, v in train_stats.items()},
             **{f"test_{k}": v for k, v in test_stats.items()},
         }
+        # if run:
+        #     run.log(log_stats)
 
         if args.use_ema:
             ema_test_stats, ema_coco_evaluator = evaluate(

@@ -51,5 +51,10 @@ fi
 
 echo -e "\n\033[1;93mFinetuning $model_file with $data_dir\033[0m\n"
 
+output_dir="$ROOT_DIR"/logs/"$model_name"_finetuned
+if [ -d "$output_dir" ]; then
+    output_dir="$output_dir"_"$(date +'%Y-%m-%d_%H-%M')"
+fi
+
 cd "$ROOT_DIR"/src
-python main.py --pretrain_model_path "$model_dir/$model_file" --config_file "$config_file" --output_dir "$ROOT_DIR"/logs/"$model_name"_finetuned --coco_path "$data_dir" --options batch_size=$batch_size on_the_fly=False --use_wandb
+python main.py --pretrain_model_path "$model_dir/$model_file" --config_file "$config_file" --output_dir "$output_dir" --coco_path "$data_dir" --options batch_size=$batch_size on_the_fly=False --use_wandb
