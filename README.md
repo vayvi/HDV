@@ -139,15 +139,20 @@ You should get the AP for different primitives and for different distance thresh
 
 For inference and visualizing results over custom images, you can use this [notebook](src/notebooks/inference.ipynb).
 
-You can also use the following script to run inference on a whole dataset (jpg images located in `data/<data_folder_name>/images/`):
+You can also use the following script to run inference on a whole dataset (jpg images located in `data/<data_set>/images/`):
 ```bash
-bash scripts/run_inference.sh <model_name> <epoch_number> <data_folder_name> <export_formats>
+bash scripts/run_inference.sh <model_name> <epoch_number> <data_set> <export_formats>
 
 # for logs/main_model/checkpoint0036.pth on eida_dataset with svg and npz export formats
 bash scripts/run_inference.sh main_model 0036 eida_dataset svg+npz
 ```
 
-Results will be saved in `data/<data_folder_name>/<export_format>_preds_<model_name><epoch_number>/`.
+Results will be saved in `data/<data_set>/<export_format>_preds_<model_name><epoch_number>/`.
+
+You can compare different inferences on the same dataset with:
+```bash
+python src/util/html.py --data_set <data_set>
+```
 
 </details>
 
