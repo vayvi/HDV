@@ -8,9 +8,9 @@ from svg.path.path import Line, Move, Arc
 
 
 PRIM_INFO = {
-    'line': {'id': 0, 'color': 'red', 'line_width': 1, 'indices': slice(0, 4), 'param_shape': (-1, 2, 2)},
-    'circle': {'id': 1, 'color': 'green', 'line_width': 1, 'indices': slice(4, 8), 'param_shape': (-1, 3)},
-    'arc': {'id': 2, 'color': 'blue', 'line_width': 1, 'indices': slice(8, 14), 'param_shape': (-1, 3, 2)}
+    'line': {'id': 0, 'color': 'red', 'line_width': 1, 'indices': slice(0, 4), 'param_shape': (-1, 2, 2), 'x_border_idx': [0, 2], 'y_border_idx': [1, 3]},
+    'circle': {'id': 1, 'color': 'green', 'line_width': 1, 'indices': slice(4, 8), 'param_shape': (-1, 3), 'x_border_idx': [0, 2], 'y_border_idx': [1, 3]},
+    'arc': {'id': 2, 'color': 'blue', 'line_width': 1, 'indices': slice(8, 14), 'param_shape': (-1, 3, 2), 'x_border_idx': [0, 2, 4], 'y_border_idx': [1, 3, 5]}
 }
 
 

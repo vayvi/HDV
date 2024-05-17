@@ -154,7 +154,10 @@ def postprocess_preds(model_preds, img_size):
 
     return pred_dict
 
-def save_pred_as_img(img_name, img, preds: dict, pred_dir, w_box=False, w_text=False, w_img=True, dpi=150, l_width=1):
+def save_pred_as_img(img_name, img, preds: dict, pred_dir, w_box=False, w_text=False, w_img=True, dpi=300, l_width=1):
+    id_to_prim = {value['id']: key for key, value in PRIM_INFO.items()}
+    preds["labels"] = [id_to_prim[value.item()] for value in preds["labels"]]
+
     vslzr = COCOVisualizer()
     vslzr.visualize(
         img,
@@ -177,7 +180,8 @@ def save_pred_as_npz(img_name, pred_dict, pred_dir):
     )
 
 
-def predict(image_path, output_dir, model, logger):
+def predict(image_path, output_dir, model):
+    # NOT USED original function here as legacy code
     im_name = Path(image_path).stem
     image = Image.open(image_path).convert("RGB")  # load image
     orig_img_size = image.size
@@ -399,16 +403,16 @@ if __name__ == "__main__":
         preds = generate_prediction(orig_img, tr_img, model)
 
         if "img" in formats:
-            # DO NOT WORK: fix by copying logic of inference notebook
+            # FIX by copying logic of inference notebook
             # for prim in prim_list:
             #     info = prim_info[prim]
             #     pred = preds['parameters'][:, info["indices"]]
             #     pos = scale_positions(pred.reshape(info["param_shape"]).copy(), (128, 128), orig_img.size)
+
+            # logger.info(preds, color="cyan")
             save_pred_as_img(filename, tr_img, preds, pred_dir=dataset_folder / f"img_preds_{args.model_name}{epoch}")
 
         preds = postprocess_preds(preds, orig_img.size)
-
-        # logger.info(preds, color="cyan")
 
         if "npz" in formats:
             save_pred_as_npz(filename, preds, pred_dir=dataset_folder / f"npz_preds_{args.model_name}{epoch}")
