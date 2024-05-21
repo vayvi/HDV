@@ -128,6 +128,7 @@ def main(args):
         import wandb
         run = wandb.init(
             project="dino-primitives",
+            name=f"{args.output_dir.split('/')[-1]}_{datetime.date.today()}",
             config=cfg_dict,
             notes=args.output_dir,
         )
@@ -148,7 +149,7 @@ def main(args):
         color=False,
         name="detr",
     )
-    logger.info(f"git:\n  {utils.get_sha()}\n")
+    logger.info(f"git:\n {utils.get_sha()}\n")
     logger.info(f"Command: {' '.join(sys.argv)}")
     if args.rank == 0:
         save_json_path = os.path.join(args.output_dir, "config_args_all.json")

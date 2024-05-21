@@ -14,6 +14,11 @@ parser.add_argument(
     type=str,
     help="Data set name to visualize inferences",
 )
+parser.add_argument(
+    "--filename",
+    type=str,
+    help="Name of the output HTML file",
+)
 
 def check_output_file(path):
     if not os.path.exists(path):
@@ -168,5 +173,5 @@ def gen_html(filename, data_set):
 
 if __name__ == "__main__":
     args = parser.parse_args()
-    model_folder = DATA_DIR / args.data_set
-    gen_html("inferences", args.data_set)
+    html_file = args.filename if args.filename else args.data_set
+    gen_html(html_file, args.data_set)

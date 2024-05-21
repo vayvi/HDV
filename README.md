@@ -149,9 +149,9 @@ bash scripts/run_inference.sh main_model 0036 eida_dataset svg+npz
 
 Results will be saved in `data/<data_set>/<export_format>_preds_<model_name><epoch_number>/`.
 
-You can compare different inferences on the same dataset with:
+You can compare different inferences on the same dataset with (outputs an HTML file `data/<data_set>/<filename>.html`):
 ```bash
-python src/util/html.py --data_set <data_set>
+python src/util/html.py --data_set <data_set> --filename <filename>
 ```
 
 </details>

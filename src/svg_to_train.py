@@ -91,7 +91,7 @@ def draw_arc(param, img, width_ratio, color="firebrick"):
     )
 
 def draw_line(param, img, width_ratio, color="green"):
-    line = [(param[0], param[1]), (param[2], param[3])]
+    line = [(param[0][0], param[0][1]), (param[1][0], param[1][1])]
     img.line(line, fill=color, width=int(2 * width_ratio))
 
 def draw_circle(param, img, width_ratio, color="royalblue"):
@@ -186,10 +186,8 @@ def svg_to_params(svg_path, ellipse_to_circle_ratio_threshold=5 * 1e-2):
     for line_coords in np.array(lines_c):
         lines.append(
             [
-                float(line_coords[0]),
-                float(line_coords[1]),
-                float(line_coords[2]),
-                float(line_coords[3]),
+                [float(line_coords[0]), float(line_coords[1])],
+                [float(line_coords[2]), float(line_coords[3])]
             ]
         )
     for arc_coord in arc_params:
@@ -288,6 +286,9 @@ if __name__ == "__main__":
         )
         for prim_type in params:
             for prim_id, p in enumerate(params[prim_type]):
+                if PRIM_INFO[prim_type]["id"] == 0:
+                    print(p)
+
                 output["annotations"].append(
                     {
                         "id": f"{nb}_{prim_id}",

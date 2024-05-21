@@ -25,6 +25,7 @@ from util.box_ops import (
     get_box_from_arcs,
 )
 from util.primitives import PRIM_INFO
+from util.logger import pprint
 import numpy as np
 
 PRIMITIVES = list(PRIM_INFO.keys())
@@ -107,63 +108,65 @@ def prim_crop(target, prim_type, h, w):
 def instance_aware_crop(image, target):
     h, w = target["size"]
 
-    # circles = target["circles"] if "circles" in target and len(target["circles"]) else None
-    # lines = target["lines"] if "lines" in target and len(target["lines"]) else None
-    # arcs = target["arcs"] if "arcs" in target and target["arcs"].shape[0] > 0 else None
-    #
-    # if circles is not None:
-    #     x_borders_circles, y_borders_circles = (
-    #         circles[:, [0, 2]],
-    #         circles[:, [1, 3]],
-    #     )
-    #     min_circle_x, max_circle_x = x_borders_circles.min(), x_borders_circles.max()
-    #     min_circle_y, max_circle_y = y_borders_circles.min(), y_borders_circles.max()
-    # else:
-    #     min_circle_x, min_circle_y = w, h
-    #     max_circle_x, max_circle_y = torch.tensor(0), torch.tensor(0)
-    #
-    # if lines is not None:
-    #     x_borders_lines, y_borders_lines = (
-    #         lines[:, [0, 2]],
-    #         lines[:, [1, 3]],
-    #     )
-    #     min_line_x, max_line_x = x_borders_lines.min(), x_borders_lines.max()
-    #     min_line_y, max_line_y = y_borders_lines.min(), y_borders_lines.max()
-    # else:
-    #     min_line_x, min_line_y = w, h
-    #     max_line_x, max_line_y = torch.tensor(0), torch.tensor(0)
-    #
-    # if arcs is not None:
-    #     borders_x = arcs[:, [0, 2, 4]]
-    #     borders_y = arcs[:, [1, 3, 5]]
-    #     min_arc_x, min_arc_y = borders_x.min(), borders_y.min()
-    #     max_arc_x, max_arc_y = borders_x.max(), borders_y.max()
-    # else:
-    #     max_arc_x, max_arc_y = torch.tensor(0), torch.tensor(0)
-    #     min_arc_x, min_arc_y = w, h
-    #
-    # min_border_x = torch.min(
-    #     torch.stack([min_circle_x, min_line_x, min_arc_x]),
-    #     dim=0,
-    # ).values
-    # min_border_y = torch.min(
-    #     torch.stack([min_circle_y, min_line_y, min_arc_y]),
-    #     dim=0,
-    # ).values
-    # max_border_x = torch.max(
-    #     torch.stack([max_circle_x, max_line_x, max_arc_x]),
-    #     dim=0,
-    # ).values
-    # max_border_y = torch.max(
-    #     torch.stack([max_circle_y, max_line_y, max_arc_y]),
-    #     dim=0,
-    # ).values
+    circles = target["circles"] if "circles" in target and len(target["circles"]) else None
+    lines = target["lines"] if "lines" in target and len(target["lines"]) else None
+    arcs = target["arcs"] if "arcs" in target and target["arcs"].shape[0] > 0 else None
 
-    min_x, min_y, max_x, max_y = zip(*(prim_crop(target, prim_type, h, w) for prim_type in PRIMITIVES))
-    min_border_x = torch.min(torch.stack(min_x), dim=0).values
-    min_border_y = torch.min(torch.stack(min_y), dim=0).values
-    max_border_x = torch.max(torch.stack(max_x), dim=0).values
-    max_border_y = torch.max(torch.stack(max_y), dim=0).values
+    if circles is not None:
+        x_borders_circles, y_borders_circles = (
+            circles[:, [0, 2]],
+            circles[:, [1, 3]],
+        )
+        min_circle_x, max_circle_x = x_borders_circles.min(), x_borders_circles.max()
+        min_circle_y, max_circle_y = y_borders_circles.min(), y_borders_circles.max()
+    else:
+        min_circle_x, min_circle_y = w, h
+        max_circle_x, max_circle_y = torch.tensor(0), torch.tensor(0)
+
+    if lines is not None:
+        x_borders_lines, y_borders_lines = (
+            lines[:, [0, 2]],
+            lines[:, [1, 3]],
+        )
+        min_line_x, max_line_x = x_borders_lines.min(), x_borders_lines.max()
+        min_line_y, max_line_y = y_borders_lines.min(), y_borders_lines.max()
+    else:
+        min_line_x, min_line_y = w, h
+        max_line_x, max_line_y = torch.tensor(0), torch.tensor(0)
+
+    if arcs is not None:
+        borders_x = arcs[:, [0, 2, 4]]
+        borders_y = arcs[:, [1, 3, 5]]
+        min_arc_x, min_arc_y = borders_x.min(), borders_y.min()
+        max_arc_x, max_arc_y = borders_x.max(), borders_y.max()
+    else:
+        max_arc_x, max_arc_y = torch.tensor(0), torch.tensor(0)
+        min_arc_x, min_arc_y = w, h
+
+    min_border_x = torch.min(
+        torch.stack([min_circle_x, min_line_x, min_arc_x]),
+        dim=0,
+    ).values
+    min_border_y = torch.min(
+        torch.stack([min_circle_y, min_line_y, min_arc_y]),
+        dim=0,
+    ).values
+    max_border_x = torch.max(
+        torch.stack([max_circle_x, max_line_x, max_arc_x]),
+        dim=0,
+    ).values
+    max_border_y = torch.max(
+        torch.stack([max_circle_y, max_line_y, max_arc_y]),
+        dim=0,
+    ).values
+
+    # ================== Factorisation ==================
+    # min_x, min_y, max_x, max_y = zip(*(prim_crop(target, prim_type, h, w) for prim_type in PRIMITIVES))
+    # min_border_x = torch.min(torch.stack(min_x), dim=0).values
+    # min_border_y = torch.min(torch.stack(min_y), dim=0).values
+    # max_border_x = torch.max(torch.stack(max_x), dim=0).values
+    # max_border_y = torch.max(torch.stack(max_y), dim=0).values
+    # ===================================================
 
     random_center_offset = random.randint(0, 30)
 
@@ -171,26 +174,27 @@ def instance_aware_crop(image, target):
     j = int(max(min_border_x.item() - random_center_offset, 0))
     h = int(min(max_border_y.item() - i + random.randint(0, 30), h - i))
     w = int(min(max_border_x.item() - j + random.randint(0, 30), w - j))
-
     region = (i, j, h, w)
 
     cropped_image = F.crop(image, *region)
     target = target.copy()
     target["size"] = torch.tensor([h, w])
 
-    # target["circles"] = target["circles"] - torch.as_tensor(
-    #     [j, i, j, i], dtype=torch.float32
-    # )
-    # target["lines"] = target["lines"] - torch.as_tensor(
-    #     [j, i, j, i], dtype=torch.float32
-    # )
-    # target["arcs"] = target["arcs"] - torch.as_tensor(
-    #     [j, i, j, i, j, i], dtype=torch.float32
-    # )
+    # ================== Factorisation ==================
+    # for prim_type in PRIMITIVES:
+    #     tensor = [j, i, j, i, j, i] if prim_type == "arc" else [j, i, j, i]
+    #     target[f"{prim_type}s"] = target[f"{prim_type}s"] - torch.as_tensor(tensor, dtype=torch.float32)
+    # ===================================================
 
-    for prim_type in PRIMITIVES:
-        tensor = [j, i, j, i, j, i] if prim_type == "arc" else [j, i, j, i]
-        target[f"{prim_type}s"] = target[f"{prim_type}s"] - torch.as_tensor(tensor, dtype=torch.float32)
+    target["circles"] = target["circles"] - torch.as_tensor(
+        [j, i, j, i], dtype=torch.float32
+    )
+    target["lines"] = target["lines"] - torch.as_tensor(
+        [j, i, j, i], dtype=torch.float32
+    )
+    target["arcs"] = target["arcs"] - torch.as_tensor(
+        [j, i, j, i, j, i], dtype=torch.float32
+    )
 
     return cropped_image, target
 

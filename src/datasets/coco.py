@@ -213,18 +213,17 @@ def make_coco_transforms(image_set, args):
         raise ValueError(f"unknown {image_set}")
 
 
-def build(image_set, args):
+def build(image_set, args, mode="primitives"):
     root = Path(args.coco_path)
     if not args.on_the_fly:
         assert root.exists(), f"provided COCO path {root} does not exist"
-    mode = "primitives"
+
     if args.on_the_fly and ("train" in image_set):
         dataset = CocoDetectionOnTheFly(
             transforms=make_coco_transforms(image_set, args),
             args=args,
             num_samples=args.num_samples,
         )
-
         return dataset
     elif hasattr(args, 'on_the_fly_val') and args.on_the_fly_val and ("val" in image_set):
         dataset = CocoDetectionOnTheFly(
@@ -232,23 +231,15 @@ def build(image_set, args):
             args=args,
             num_samples=args.num_samples // 5,
         )
-
         return dataset
-    if "synthetic" in str(root):
-        PATHS = {
-            "train": (root / "train", root / "annotations" / f"{mode}_train.json"),
-            "val": (root / "val", root / "annotations" / f"{mode}_val.json"),
-        }
-    else:
-        PATHS = {
-            "train": (root / "train", root / "annotations" / f"{mode}_train.json"),
-            "val": (root / "val", root / "annotations" / f"{mode}_val.json"),
-        }
 
-    if image_set == "test_train":
-        img_folder, ann_file = PATHS["train"]
-    else:
-        img_folder, ann_file = PATHS[image_set]
+    PATHS = {
+        "train": (root / "train", root / "annotations" / f"{mode}_train.json"),
+        "val": (root / "val", root / "annotations" / f"{mode}_val.json"),
+    }
+
+    img_folder, ann_file = PATHS["train" if "train" in image_set else "val"]
+
     print("#######", img_folder, "~####################")
     print("#######", ann_file, "~###########")
 
@@ -259,6 +250,3 @@ def build(image_set, args):
         args=args,
     )
     return dataset
-
-# MARKER : build dataset for training and validation with CocoDetection
-
