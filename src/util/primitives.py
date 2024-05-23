@@ -18,6 +18,40 @@ class BadPath(Exception):
     pass
 
 
+def get_circles_from_ellipses(ellipses, circles, ellipse_to_circle_ratio_threshold=5 * 1e-2):
+    c_centers, c_radii = circles
+    e_centers = np.array(
+        [
+            [float(ellipse.getAttribute("cx")), float(ellipse.getAttribute("cy"))]
+            for ellipse in ellipses
+        ]
+    )
+    e_radii = np.array(
+        [
+            [float(ellipse.getAttribute("rx")), float(ellipse.getAttribute("ry"))]
+            for ellipse in ellipses
+        ]
+    )
+
+    mask = (
+        np.abs((e_radii[:, 0] / (e_radii[:, 1] + 1e-8)) - 1)
+        < ellipse_to_circle_ratio_threshold
+    )
+    if len(c_centers):
+        c_centers = np.vstack([c_centers, e_centers[mask]])
+        c_radii = np.concatenate([c_radii, np.mean(e_radii[mask], axis=1)])
+    else:
+        c_centers = e_centers[mask]
+        c_radii = np.mean(e_radii[mask], axis=1)
+
+    e_centers, e_radii = e_centers[~mask], e_radii[~mask]
+    if len(e_centers) > 0:
+        ellipses = {"ellipse_centers": e_centers, "ellipse_radii": e_radii}
+        print(f"Found ellipses.")
+
+    return ellipses, (c_centers, c_radii)
+
+
 def get_angles_from_arc_points(p0, p_mid, p1):
     arc_center = find_circle_center(p0, p_mid, p1)
     arc_center = (arc_center[0], arc_center[1]) # NOTE some versions don't have this line

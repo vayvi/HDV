@@ -10,6 +10,7 @@ import argparse
 import re
 from PIL import Image, ImageDraw
 
+
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from util.primitives import (
@@ -18,7 +19,8 @@ from util.primitives import (
     get_arc_param_from_inkscape,
     read_paths_with_transforms,
     BadPath,
-    get_radius
+    get_radius,
+    get_circles_from_ellipses
 )
 
 parser = argparse.ArgumentParser()
@@ -68,34 +70,35 @@ def get_gt_from_svg(annotation_path, ellipse_to_circle_ratio_threshold=5 * 1e-2)
             ]
         )
     if len(doc_ellipses) > 0:
-        ellipse_centers = np.array(
-            [
-                [float(ellipse.getAttribute("cx")), float(ellipse.getAttribute("cy"))]
-                for ellipse in doc_ellipses
-            ]
-        )
-        ellipse_r = np.array(
-            [
-                [float(ellipse.getAttribute("rx")), float(ellipse.getAttribute("ry"))]
-                for ellipse in doc_ellipses
-            ]
-        )
-
-        mask = (
-            np.abs((ellipse_r[:, 0] / (ellipse_r[:, 1] + 1e-8)) - 1)
-            < ellipse_to_circle_ratio_threshold
-        )
-        if len(circle_centers):
-            circle_centers = np.vstack([circle_centers, ellipse_centers[mask]])
-            circle_r = np.concatenate([circle_r, np.mean(ellipse_r[mask], axis=1)])
-        else:
-            circle_centers = ellipse_centers[mask]
-            circle_r = np.mean(ellipse_r[mask], axis=1)
-        ellipse_centers, ellipse_r = ellipse_centers[~mask], ellipse_r[~mask]
-        if len(ellipse_centers) > 0:
-            ellipses = {"ellipse_centers": ellipse_centers, "ellipse_radii": ellipse_r}
-            print("############")
-            print(f"svg {annotation_path} has ellipses.")
+        # ellipse_centers = np.array(
+        #     [
+        #         [float(ellipse.getAttribute("cx")), float(ellipse.getAttribute("cy"))]
+        #         for ellipse in doc_ellipses
+        #     ]
+        # )
+        # ellipse_r = np.array(
+        #     [
+        #         [float(ellipse.getAttribute("rx")), float(ellipse.getAttribute("ry"))]
+        #         for ellipse in doc_ellipses
+        #     ]
+        # )
+        #
+        # mask = (
+        #     np.abs((ellipse_r[:, 0] / (ellipse_r[:, 1] + 1e-8)) - 1)
+        #     < ellipse_to_circle_ratio_threshold
+        # )
+        # if len(circle_centers):
+        #     circle_centers = np.vstack([circle_centers, ellipse_centers[mask]])
+        #     circle_r = np.concatenate([circle_r, np.mean(ellipse_r[mask], axis=1)])
+        # else:
+        #     circle_centers = ellipse_centers[mask]
+        #     circle_r = np.mean(ellipse_r[mask], axis=1)
+        # ellipse_centers, ellipse_r = ellipse_centers[~mask], ellipse_r[~mask]
+        # if len(ellipse_centers) > 0:
+        #     ellipses = {"ellipse_centers": ellipse_centers, "ellipse_radii": ellipse_r}
+        #     print("############")
+        #     print(f"svg {annotation_path} has ellipses.")
+        ellipses, (circle_centers, circle_r) = get_circles_from_ellipses(doc_ellipses, (circle_centers, circle_r))
 
     doc.unlink()
 
@@ -115,7 +118,6 @@ def get_gt_from_svg(annotation_path, ellipse_to_circle_ratio_threshold=5 * 1e-2)
         "width": float(width),
         "height": float(height),
     }
-
 
 def get_annotation(table):
     centers, circle_radii, lines, arc_coords = [], [], [], []

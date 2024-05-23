@@ -14,7 +14,9 @@ from util.primitives import (
     get_arc_param_from_inkscape,
     read_paths_with_transforms,
     get_radius,
-    BadPath, PRIM_INFO
+    get_circles_from_ellipses,
+    BadPath,
+    PRIM_INFO
 )
 from util.logger import SLogger
 
@@ -46,7 +48,7 @@ output.json should have the following format:
                 [[x1, y1], [x2, y2]]
                 # for circles:
                 [center_x, center_y, radius, radius]
-                # for arcs (start, end, mid point):
+                # for arcs (start, end, mid_point):
                 [x1, y1, x2, y2, x3, y3]
         },
         { ... }
@@ -108,16 +110,16 @@ def draw_circle(param, img, width_ratio, color="royalblue"):
     )
 
 
-def svg_to_params(svg_path, ellipse_to_circle_ratio_threshold=5 * 1e-2):
+def svg_to_params(svg_path):
     doc = minidom.parse(str(svg_path))
     img_file = os.path.basename(doc.getElementsByTagName("image")[0].getAttribute("xlink:href"))
-    circle_r, circle_centers, arc_params = [], [], []
+    circle_r, circle_c, arc_coords = [], [], []
 
     path_and_transforms = []
     for path in doc.getElementsByTagName("path"):
         transform_string = path.getAttribute("transform")
         try:
-            arc_params.append(get_arc_param_from_inkscape(path))
+            arc_coords.append(get_arc_param_from_inkscape(path))
         except ValueError as e:
             if path.getAttribute("d"):
                 path_and_transforms.append(
@@ -130,68 +132,43 @@ def svg_to_params(svg_path, ellipse_to_circle_ratio_threshold=5 * 1e-2):
             else:
                 raise BadPath(f"Invalid arc path {path}")
 
-    doc_circles, doc_ellipses = doc.getElementsByTagName(
-        "circle"
-    ), doc.getElementsByTagName("ellipse")
+    doc_circles = doc.getElementsByTagName("circle")
+    doc_ellipses = doc.getElementsByTagName("ellipse")
 
     if len(doc_circles) > 0:
-        circle_r = np.array([get_radius(circle) for circle in doc_circles])
-        circle_centers = np.array(
+        circle_r = np.array([get_radius(c) for c in doc_circles])
+        circle_c = np.array(
             [
-                [float(circle.getAttribute("cx")), float(circle.getAttribute("cy"))]
-                for circle in doc_circles
+                [float(c.getAttribute("cx")), float(c.getAttribute("cy"))]
+                for c in doc_circles
             ]
         )
     if len(doc_ellipses) > 0:
-        ellipse_centers = np.array(
-            [
-                [float(ellipse.getAttribute("cx")), float(ellipse.getAttribute("cy"))]
-                for ellipse in doc_ellipses
-            ]
-        )
-        ellipse_r = np.array(
-            [
-                [float(ellipse.getAttribute("rx")), float(ellipse.getAttribute("ry"))]
-                for ellipse in doc_ellipses
-            ]
-        )
-
-        mask = (
-            np.abs((ellipse_r[:, 0] / (ellipse_r[:, 1] + 1e-8)) - 1)
-            < ellipse_to_circle_ratio_threshold
-        )
-        if len(circle_centers):
-            circle_centers = np.vstack([circle_centers, ellipse_centers[mask]])
-            circle_r = np.concatenate([circle_r, np.mean(ellipse_r[mask], axis=1)])
-        else:
-            circle_centers = ellipse_centers[mask]
-            circle_r = np.mean(ellipse_r[mask], axis=1)
-        ellipse_centers, ellipse_r = ellipse_centers[~mask], ellipse_r[~mask]
-        if len(ellipse_centers) > 0:
-            logger.info(f"SVG {svg_path} has ellipses.")
-            logger.info({"ellipse_centers": ellipse_centers, "ellipse_radii": ellipse_r})
+        ellipses, (circle_c, circle_r) = get_circles_from_ellipses(doc_ellipses, (circle_c, circle_r))
 
     doc.unlink()
 
-    lines_c, (all_arcs, arc_transforms) = read_paths_with_transforms(path_and_transforms)
+    lines_coords, (all_arcs, arc_transforms) = read_paths_with_transforms(path_and_transforms)
 
     for arc_path, arc_transform in zip(all_arcs, arc_transforms):
-        arc_params.append(get_arc_param_with_tr(arc_path, arc_transform))
+        arc_coords.append(get_arc_param_with_tr(arc_path, arc_transform))
 
-    lines, arc_coords = [], []
-    circles = []
-    for circle_pos, circle_radius in zip(circle_centers, circle_r):
+    lines, arcs, circles = [], [], []
+
+    for circle_pos, circle_radius in zip(circle_c, circle_r):
         circles.append([circle_pos[0], circle_pos[1], circle_radius, circle_radius])
 
-    for line_coords in np.array(lines_c):
+    for line_coords in np.array(lines_coords):
+        delta_x = float(line_coords[2]) - float(line_coords[0])
+        delta_y = float(line_coords[3]) - float(line_coords[1])
         lines.append(
             [
                 [float(line_coords[0]), float(line_coords[1])],
-                [float(line_coords[2]), float(line_coords[3])]
+                [delta_x, delta_y]
             ]
         )
-    for arc_coord in arc_params:
-        arc_coords.append(
+    for arc_coord in arc_coords:
+        arcs.append(
             [
                 float(arc_coord[0][0]),
                 float(arc_coord[0][1]),
@@ -204,16 +181,16 @@ def svg_to_params(svg_path, ellipse_to_circle_ratio_threshold=5 * 1e-2):
 
     return {
         "line": lines,
-        "arc": arc_coords,
+        "arc": arcs,
         "circle": circles,
     }, img_file
 
 def save_dataset(set_name, annotations):
     # save training data annotations
-    with open(finetuning_folder / "annotations" / f"primitives_{set_name}.json", "w") as f:
+    with open(out_folder / "annotations" / f"primitives_{set_name}.json", "w") as f:
         json.dump(annotations, f, indent=4)
 
-    dataset_img = finetuning_folder / set_name
+    dataset_img = out_folder / set_name
     logger.info(f"""
     SAVED {set_name.upper()} ANNOTATIONS:
     Annotations: {len(annotations['annotations'])}
@@ -233,12 +210,12 @@ if __name__ == "__main__":
 
     svg_folder = data_folder / "svgs"
     img_folder = data_folder / "images"
-    finetuning_folder = data_folder / "groundtruth"
+    out_folder = data_folder / "groundtruth"
 
     # Create finetuning data folder structure
-    Path(finetuning_folder).mkdir(parents=True, exist_ok=True)
+    Path(out_folder).mkdir(parents=True, exist_ok=True)
     for folder in ["annotations", "train", "val"]:
-        Path(finetuning_folder / folder).mkdir(parents=True, exist_ok=True)
+        Path(out_folder / folder).mkdir(parents=True, exist_ok=True)
 
     logger = SLogger(
         name="convert_svg",
@@ -273,22 +250,21 @@ if __name__ == "__main__":
             logger.error(f"Error with image {img_folder / img_name}", e)
             continue
 
-        img.save(finetuning_folder / data_set / img_name)
+        img.save(out_folder / data_set / img_name)
         h, w = img.size
 
         output["images"].append(
             {
-                "file_name": str(finetuning_folder / data_set / img_name),
+                "file_name": str(out_folder / data_set / img_name),
                 "height": h,
                 "width": w,
                 "id": nb,
             }
         )
-        for prim_type in params:
-            for prim_id, p in enumerate(params[prim_type]):
-                if PRIM_INFO[prim_type]["id"] == 0:
-                    print(p)
 
+        prim_id = 0
+        for prim_type in params:
+            for _, p in enumerate(params[prim_type]):
                 output["annotations"].append(
                     {
                         "id": f"{nb}_{prim_id}",
@@ -297,13 +273,14 @@ if __name__ == "__main__":
                         f"{prim_type}": p,
                     }
                 )
+                prim_id += 1
 
         if args.sanity_check:
             width_ratio = min(max((h + w) // 2 / 600, 2), 5)
             img1 = ImageDraw.Draw(img)
 
-            for arc_param in params["arc"]:
-                draw_arc(arc_param, img1, width_ratio)
+            for arc in params["arc"]:
+                draw_arc(arc, img1, width_ratio)
 
             for line in params["line"]:
                 draw_line(line, img1, width_ratio)
