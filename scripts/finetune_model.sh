@@ -9,6 +9,7 @@ model_name=${1:-"main_model"}
 groundtruth=$2
 device_nb=${3:-0}
 batch_size=${4:-2}
+max_size=${4:-1000} # reduce to prevent torch.cuda.OutOfMemoryError
 
 export CUDA_VISIBLE_DEVICES=$device_nb
 
@@ -33,8 +34,7 @@ if [ -z "$models" ]; then
     exit 1
 fi
 if [ -z "$config_file" ]; then
-    echo "No config file was found inside $model_dir"
-    exit 1
+    config_file="$ROOT_DIR"/src/config/DINO_4scale.py
 fi
 
 highest_epoch=$(printf "%s\n" "$models" | grep -o 'checkpoint[0-9]\+' | grep -o '[0-9]\+' | sort -n | tail -n 1)
@@ -51,10 +51,12 @@ fi
 
 echo -e "\n\033[1;93mFinetuning $model_file with $data_dir\033[0m\n"
 
-output_dir="$ROOT_DIR"/logs/"$model_name"_finetuned
+finetuned_model="$model_name"_finetuned
+
+output_dir="$ROOT_DIR"/logs/"$finetuned_model"
 if [ -d "$output_dir" ]; then
     output_dir="$output_dir"_"$(date +'%Y-%m-%d')"
 fi
 
 cd "$ROOT_DIR"/src
-python main.py --pretrain_model_path "$model_dir/$model_file" --config_file "$config_file" --output_dir "$output_dir" --coco_path "$data_dir" --options batch_size=$batch_size on_the_fly=False --use_wandb
+python main.py --pretrain_model_path "$model_dir/$model_file" --config_file "$config_file" --output_dir "$output_dir" --coco_path "$data_dir" --options batch_size=$batch_size on_the_fly=False on_the_fly_val=False use_wandb=True data_aug_max_size=$max_size

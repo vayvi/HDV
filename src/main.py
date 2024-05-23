@@ -59,8 +59,6 @@ def get_args_parser():
     parser.add_argument("--pretrain_model_path", help="load from other checkpoint")
     # Layers where weights are kept (usually first layers that are less specialized)
     parser.add_argument("--finetune_ignore", type=str, nargs="+")
-    parser.add_argument("--use_wandb", action="store_true")
-
     parser.add_argument(
         "--start_epoch", default=0, type=int, metavar="N", help="start epoch"
     )
@@ -268,6 +266,7 @@ def main(args):
             )
         else:
             checkpoint = torch.load(args.resume, map_location="cpu")
+
         model_without_ddp.load_state_dict(checkpoint["model"])
         if args.use_ema:
             if "ema_model" in checkpoint:

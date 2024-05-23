@@ -179,7 +179,7 @@ def make_coco_transforms(image_set, args):
     if args.eval:
         return T.Compose(
             [
-                T.InstanceAwareCrop(),
+                # T.InstanceAwareCrop(),
                 T.RandomResize([test_size], max_size=max_size),
                 normalize,
             ]
@@ -197,7 +197,7 @@ def make_coco_transforms(image_set, args):
                         T.RandomCounterClockwiseRotation(),
                     ),
                     T.RandomResize([500, 600]),
-                    T.InstanceAwareCrop(),
+                    # T.InstanceAwareCrop(),
                     T.RandomResize(scales, max_size=max_size),
                     normalize,
                 ]
