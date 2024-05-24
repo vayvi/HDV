@@ -37,9 +37,6 @@ parser.add_argument(
     help="root directory of the data",
 )
 
-id2name = {0: "line", 1: "circle", 2: "arc"}
-
-
 def scale_positions(lines, heatmap_scale=(128, 128), im_shape=None):
     if len(lines) == 0:
         return []

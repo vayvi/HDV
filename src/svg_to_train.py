@@ -7,6 +7,9 @@ from xml.dom import minidom
 import numpy as np
 from PIL import Image, ImageDraw
 
+from datasets.coco import CocoDetection
+from inference import save_pred_as_img
+from util.visualizer import COCOVisualizer
 from util import DATA_DIR
 from util.primitives import (
     get_angles_from_arc_points,
@@ -44,8 +47,8 @@ output.json should have the following format:
             "category_id": <prim_id>, # 0 for lines, 1 for circles, 2 for arcs
             "image_id": <unique_img_id>,
             "parameters": 
-                # for lines: 
-                [[x1, y1], [x2, y2]]
+                # for lines (x,y then relative coordinates): 
+                [[x1, y1], [dx, d2]]
                 # for circles:
                 [center_x, center_y, radius, radius]
                 # for arcs (start, end, mid_point):
@@ -55,7 +58,7 @@ output.json should have the following format:
     ]
 }  
 """
-output = { "images": [], "annotations": [] }
+output = { "images": {}, "annotations": {} }
 
 def draw_arc(param, img, width_ratio, color="firebrick"):
     p0 = np.array([param[0], param[1]])
@@ -188,7 +191,10 @@ def svg_to_params(svg_path):
 def save_dataset(set_name, annotations):
     # save training data annotations
     with open(out_folder / "annotations" / f"primitives_{set_name}.json", "w") as f:
-        json.dump(annotations, f, indent=4)
+        json.dump({
+            "images": list(annotations["images"].values()),
+            "annotations": list(annotations["annotations"].values()),
+        }, f, indent=4)
 
     dataset_img = out_folder / set_name
     logger.info(f"""
@@ -197,8 +203,37 @@ def save_dataset(set_name, annotations):
     Images: {len(annotations['images'])}
     Files in {dataset_img}: {len(list(dataset_img.glob('*')))}""")
 
+    if args.sanity_check:
+        dataset = CocoDetection(
+            out_folder / data_set,
+            out_folder / "annotations" / f"primitives_{data_set}.json",
+            transforms=None,
+            args=None,
+        )
+        # vslzr = COCOVisualizer()
+        for _img, _anno in dataset:
+            im_name = Path(annotations["images"][int(_anno["image_id"][0])]["file_name"]).stem
+            save_pred_as_img(im_name, _img, _anno, svg_folder)
+            # id_to_prim = {value['id']: key for key, value in PRIM_INFO.items()}
+            # preds = {
+            #     'parameters': _anno['parameters'],
+            #     'image_id': _anno['image_id'],
+            #     'size': _anno["size"],
+            #     'labels': [id_to_prim[value.item()] for value in _anno["labels"]],
+            # }
+            # vslzr.visualize(
+            #     _img,
+            #     preds,
+            #     primitives_to_show=list(PRIM_INFO.keys()),
+            #     show_boxes=False,
+            #     show_text=False,
+            #     show_image=True,
+            #     savedir=out_folder / data_set,
+            #     img_name=f"{im_name}.jpg",
+            # )
+
     # reset output annotations
-    return {"images": [], "annotations": []}, "val"
+    return {"images": {}, "annotations": {}}, "val"
 
 if __name__ == "__main__":
     args = parser.parse_args()
@@ -253,41 +288,38 @@ if __name__ == "__main__":
         img.save(out_folder / data_set / img_name)
         h, w = img.size
 
-        output["images"].append(
-            {
-                "file_name": str(out_folder / data_set / img_name),
-                "height": h,
-                "width": w,
-                "id": nb,
-            }
-        )
+        output["images"][nb] = {
+            "file_name": str(out_folder / data_set / img_name),
+            "height": h,
+            "width": w,
+            "id": nb,
+        }
 
         prim_id = 0
         for prim_type in params:
             for _, p in enumerate(params[prim_type]):
-                output["annotations"].append(
-                    {
-                        "id": f"{nb}_{prim_id}",
-                        "category_id": PRIM_INFO[prim_type]["id"],
-                        "image_id": nb,
-                        f"{prim_type}": p,
-                    }
-                )
+                output["annotations"][f"{nb}_{prim_id}"] = {
+                    "id": f"{nb}_{prim_id}",
+                    "category_id": PRIM_INFO[prim_type]["id"],
+                    "image_id": nb,
+                    f"{prim_type}": p,
+                }
+
                 prim_id += 1
 
-        if args.sanity_check:
-            width_ratio = min(max((h + w) // 2 / 600, 2), 5)
-            img1 = ImageDraw.Draw(img)
-
-            for arc in params["arc"]:
-                draw_arc(arc, img1, width_ratio)
-
-            for line in params["line"]:
-                draw_line(line, img1, width_ratio)
-
-            for circle in params["circle"]:
-                draw_circle(circle, img1, width_ratio)
-
-            img.save(svg_folder / f"{img_name.split('.')[0]}_out.png")
+        # if args.sanity_check:
+        #     width_ratio = min(max((h + w) // 2 / 600, 2), 5)
+        #     img1 = ImageDraw.Draw(img)
+        #
+        #     for arc in params["arc"]:
+        #         draw_arc(arc, img1, width_ratio)
+        #
+        #     for line in params["line"]:
+        #         draw_line(line, img1, width_ratio)
+        #
+        #     for circle in params["circle"]:
+        #         draw_circle(circle, img1, width_ratio)
+        #
+        #     img.save(svg_folder / f"{img_name.split('.')[0]}_out.png")
 
     save_dataset(data_set, output)

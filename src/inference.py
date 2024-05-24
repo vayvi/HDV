@@ -387,7 +387,7 @@ if __name__ == "__main__":
 
     logger = SLogger(
         name="inference",
-        log_file=dataset_folder / f"logs_{args.model_name}{epoch}.txt",
+        # log_file=dataset_folder / f"logs_{args.model_name}{epoch}.txt",
     )
 
     t0 = time.time()
