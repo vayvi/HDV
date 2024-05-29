@@ -1,26 +1,24 @@
 import argparse
 import os
 import time
-from pathlib import Path
-
-from PIL import Image
+import re
 import numpy as np
 import torch
 import svgwrite
+from pathlib import Path
+from PIL import Image
 
-from main import build_model_main
+import xml.etree.ElementTree as ET
+
 from util.logger import SLogger
 from util import MODEL_DIR, DEFAULT_CONF, DATA_DIR
-from util.slconfig import SLConfig, DictAction
+from util.slconfig import SLConfig
 from util.visualizer import COCOVisualizer
 from util.primitives import PRIM_INFO, get_arc_param, write_svg_dwg, line_to_xy, circle_to_xy, arc_to_xy, remove_duplicate_lines, \
     remove_small_lines, remove_duplicate_circles, remove_duplicate_arcs, remove_arcs_on_top_of_circles, \
     remove_arcs_on_top_of_lines
-import datasets.transforms as T
 
-import xml.etree.ElementTree as ET
-import re
-import shutil
+import datasets.transforms as T
 
 from svg.path import parse_path
 from svg.path.path import Line, Arc
@@ -376,7 +374,9 @@ if __name__ == "__main__":
 
     config = set_config(config_path)
 
-    model, criterion, postprocessors = build_model_main(config)
+    from main import build_model_main
+    model, _, postprocessors = build_model_main(config)
+
     checkpoint = torch.load(model_checkpoint_path, map_location='cuda')
     model.load_state_dict(checkpoint['model'])
     _ = model.eval()

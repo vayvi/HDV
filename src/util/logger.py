@@ -41,6 +41,24 @@ def ppprint(o):
     return "\n".join(pprint(obj) for obj in o)
 
 
+def fstr(msg = None, color="bold", e: Optional[Exception] = None, w_time=None):
+    f_msg = ""
+    if w_time:
+        f_msg += f"\n\n[{get_time()}]"
+    if msg is not None:
+        if not isinstance(msg, tuple) and not isinstance(msg, list):
+            msg = (msg,)
+        f_msg += f"\n\n{get_color(color)}{ppprint(msg)}{ConsoleColors.end}\n"
+    if e:
+        f_msg += f"\n\n[{e.__class__.__name__}] {e}"
+        f_msg += f"\nStack Trace:\n{get_color('red')}{traceback.format_exc()}{ConsoleColors.end}\n"
+    return f_msg
+
+
+def fprint(msg = None, color="bold", e: Optional[Exception] = None, w_time=None):
+    print(fstr(msg, color, e, w_time))
+
+
 class ConsoleColors:
     """
     Last digit
@@ -201,16 +219,17 @@ class SLogger:
 
     @staticmethod
     def f_str(msg = None, color="bold", e: Optional[Exception] = None):
-        f_msg = ""
-        if msg:
-            if isinstance(msg, str):
-                msg = (msg,)
-            # f_msg += f"\n\n[{get_time()}]"
-            f_msg += f"\n\n{get_color(color)}{ppprint(msg)}{ConsoleColors.end}\n"
-        if e:
-            f_msg += f"\n\n[{e.__class__.__name__}] {e}"
-            f_msg += f"\nStack Trace:\n{get_color('red')}{traceback.format_exc()}{ConsoleColors.end}\n"
-        return f_msg
+        # f_msg = ""
+        # if msg:
+        #     if isinstance(msg, str):
+        #         msg = (msg,)
+        #     # f_msg += f"\n\n[{get_time()}]"
+        #     f_msg += f"\n\n{get_color(color)}{ppprint(msg)}{ConsoleColors.end}\n"
+        # if e:
+        #     f_msg += f"\n\n[{e.__class__.__name__}] {e}"
+        #     f_msg += f"\nStack Trace:\n{get_color('red')}{traceback.format_exc()}{ConsoleColors.end}\n"
+        # return f_msg
+        return fstr(msg, color, e)
 
     def info(self, *s, **kwargs) -> None:
         self.logger.info(SLogger.f_str(s, **kwargs))

@@ -6,16 +6,18 @@ ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 source "$ROOT_DIR"/venv/bin/activate
 
 model_name=${1:-"main_model"}
-groundtruth=$2
+ground_truth=$2
 device_nb=${3:-0}
 batch_size=${4:-2}
 max_size=${4:-1000} # reduce to prevent torch.cuda.OutOfMemoryError
+learning_rate=${5:-0.0001}
+epoch_nb=${5:-46}
 
 export CUDA_VISIBLE_DEVICES=$device_nb
 
-if [ -z "$groundtruth" ]; then
-    echo "No groundtruth provided"
-    echo "Usage: $0 <model_name> <groundtruth> <device_nb?> <batch_size?>"
+if [ -z "$ground_truth" ]; then
+    echo "No ground truth provided"
+    echo "Usage: $0 <model_name> <ground_truth> <device_nb?> <batch_size?> <max_size?> <learning_rate?>"
     exit 1
 fi
 
@@ -42,7 +44,7 @@ model_file="checkpoint${highest_epoch}.pth"
 
 echo "Using model $model_file"
 
-data_dir="$ROOT_DIR"/data/"$groundtruth"
+data_dir="$ROOT_DIR"/data/"$ground_truth"
 
 if [ ! -d "$data_dir" ]; then
     echo "Data directory $data_dir does not exist"
@@ -59,4 +61,15 @@ if [ -d "$output_dir" ]; then
 fi
 
 cd "$ROOT_DIR"/src
-python main.py --pretrain_model_path "$model_dir/$model_file" --config_file "$config_file" --output_dir "$output_dir" --coco_path "$data_dir" --options batch_size=$batch_size on_the_fly=False on_the_fly_val=False use_wandb=True data_aug_max_size=$max_size
+python main.py \
+    --pretrain_model_path "$model_dir/$model_file" \
+    --config_file "$config_file" \
+    --output_dir "$output_dir" \
+    --coco_path "$data_dir" \
+    --options batch_size="$batch_size" \
+            on_the_fly=False \
+            on_the_fly_val=False \
+            data_aug_max_size="$max_size" \
+            lr="$learning_rate" \
+            epochs="$epoch_nb" \
+            use_wandb=True

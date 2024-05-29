@@ -6,7 +6,9 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from util import MODEL_DIR, DATA_DIR
 from util import ROOT_DIR
+from util.primitives import PRIM_INFO
 from util.slconfig import SLConfig
+from util.logger import fprint
 from models.registry import MODULE_BUILD_FUNCS
 import datasets.transforms as T
 
@@ -37,15 +39,15 @@ parser.add_argument(
     help="root directory of the data",
 )
 
-def scale_positions(lines, heatmap_scale=(128, 128), im_shape=None):
-    if len(lines) == 0:
+def scale_positions(prims, heatmap_scale=(128, 128), im_shape=None):
+    if len(prims) == 0:
         return []
     fx, fy = heatmap_scale[0] / im_shape[1], heatmap_scale[1] / im_shape[0]
 
-    lines[:, :, 0] = np.clip(lines[:, :, 0] * fx, 0, heatmap_scale[0] - 1e-4)
-    lines[:, :, 1] = np.clip(lines[:, :, 1] * fy, 0, heatmap_scale[1] - 1e-4)
+    prims[:, :, 0] = np.clip(prims[:, :, 0] * fx, 0, heatmap_scale[0] - 1e-4)
+    prims[:, :, 1] = np.clip(prims[:, :, 1] * fy, 0, heatmap_scale[1] - 1e-4)
 
-    return lines
+    return prims
 
 
 def build_model_main(args):
@@ -56,14 +58,25 @@ def build_model_main(args):
     return model, criterion, postprocessors
 
 
+def output_class(pred_dict, prim_type):
+    p_info = PRIM_INFO[prim_type]
+    mask = pred_dict["labels"] == p_info["id"]
+    prim, prim_scores = pred_dict["parameters"][mask][:, p_info["indices"]], pred_dict["scores"][mask]
+    # print(prim, prim.cpu().numpy().reshape(p_info["prim_shape"]), p_info["prim_shape"])
+    try:
+        prim = prim.cpu().numpy().reshape(p_info["prim_shape"])
+    except ValueError as e:
+        fprint((f"Could not reshape {prim.shape} to {p_info['prim_shape']}", prim), e=e)
+        prim = prim.cpu().numpy()
+
+    return prim, prim_scores.cpu().numpy()
+
+
 def get_outputs_per_class(pred_dict):
     mask = pred_dict["labels"] == 0
     lines, line_scores = pred_dict["parameters"][mask][:, :4], pred_dict["scores"][mask]
     mask = pred_dict["labels"] == 1
-    circles, circle_scores = (
-        pred_dict["parameters"][mask][:, 4:8],
-        pred_dict["scores"][mask],
-    )
+    circles, circle_scores = pred_dict["parameters"][mask][:, 4:8], pred_dict["scores"][mask],
     mask = pred_dict["labels"] == 2
     arcs, arc_scores = pred_dict["parameters"][mask][:, 8:14], pred_dict["scores"][mask]
     lines, line_scores = lines.cpu().numpy(), line_scores.cpu().numpy()
@@ -86,7 +99,9 @@ def main(
     model_config_path = model_folder / "config_cfg.py"
 
     model_checkpoint_path = model_folder / f"checkpoint{epoch}.pth"
-    npz_dir = model_folder / f"npz_preds{epoch}"
+
+    data_folder = DATA_DIR / data_folder_name
+    npz_dir = data_folder / f"npz_preds_{model_name}{epoch}"
     os.makedirs(npz_dir, exist_ok=True)
 
     args = SLConfig.fromfile(model_config_path)
@@ -97,7 +112,7 @@ def main(
     _ = model.eval()
 
     # load all image paths
-    images_folder_path = DATA_DIR / data_folder_name / "images"
+    images_folder_path = data_folder / "images"
     file_extension = ".jpg"
     image_paths = sorted(glob.glob(f"{images_folder_path}/*{file_extension}"))
     print(f"{images_folder_path}: Found {len(image_paths)} images")
@@ -133,7 +148,6 @@ def main(
         # and then resize the heatmap to (128, 128) comparison.
         image = Image.open(image_path).convert("RGB")  # load image
         size = image.size
-        im_shape = size
         image, _ = transform(image, None)
         # size = torch.Tensor([image.shape[1], image.shape[2]])
 
@@ -158,22 +172,27 @@ def main(
             "labels": box_label,
             "scores": scores,
         }
-        (
-            lines,
-            line_scores,
-            circles,
-            circle_scores,
-            arcs,
-            arc_scores,
-        ) = get_outputs_per_class(pred_dict)
-        good_circles = circles.reshape(-1, 2, 2)
-        good_lines = lines.reshape(-1, 2, 2)
-        good_arcs = arcs.reshape(-1, 3, 2)
+        # (
+        #     lines,
+        #     line_scores,
+        #     circles,
+        #     circle_scores,
+        #     arcs,
+        #     arc_scores,
+        # ) = get_outputs_per_class(pred_dict)
+        # good_circles = circles.reshape(-1, 2, 2)
+        # good_lines = lines.reshape(-1, 2, 2)
+        # good_arcs = arcs.reshape(-1, 3, 2)
 
-        pos_l = scale_positions(good_lines.copy(), heatmap_scale, im_shape)
-        pos_c = scale_positions(good_circles.copy(), heatmap_scale, im_shape)
-        pos_a = scale_positions(good_arcs.copy(), heatmap_scale, im_shape)
+        good_lines, line_scores = output_class(pred_dict, "line")
+        good_circles, circle_scores = output_class(pred_dict, "circle")
+        good_arcs, arc_scores = output_class(pred_dict, "arc")
 
+        pos_l = scale_positions(good_lines.copy(), heatmap_scale, size)
+        pos_c = scale_positions(good_circles.copy(), heatmap_scale, size)
+        pos_a = scale_positions(good_arcs.copy(), heatmap_scale, size)
+
+        fprint(pos_c)
         np.savez(
             npz_dir / f"{im_name}.npz",
             lines=pos_l,
@@ -183,7 +202,7 @@ def main(
             arcs=pos_a,
             arc_scores=arc_scores,
         )
-        print(f"Saved {im_name}.npz")
+        print(f"Saved {npz_dir / im_name}.npz")
 
         # save preds is npz format
 

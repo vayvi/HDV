@@ -13,6 +13,5 @@ epoch=$1
 for model_name in "${model_names[@]}"
 do
     python "$ROOT_DIR"/evaluation/generate_preds.py --model_name "$model_name" --threshold 0 --epoch "$epoch"
-
     python "$ROOT_DIR"/evaluation/evaluate.py --model_name "$model_name" --epoch 0012
 done

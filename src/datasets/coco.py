@@ -233,19 +233,26 @@ def build(image_set, args, mode="primitives"):
         )
         return dataset
 
-    PATHS = {
-        "train": (root / "train", root / "annotations" / f"{mode}_train.json"),
-        "val": (root / "val", root / "annotations" / f"{mode}_val.json"),
-    }
-
-    img_folder, ann_file = PATHS["train" if "train" in image_set else "val"]
-
-    print("#######", img_folder, "~####################")
-    print("#######", ann_file, "~###########")
+    # PATHS = {
+    #     "train": (root / "train", root / "annotations" / f"{mode}_train.json"),
+    #     "val": (root / "val", root / "annotations" / f"{mode}_val.json"),
+    # }
+    #
+    # img_folder, ann_file = PATHS["train" if "train" in image_set else "val"]
+    #
+    # print("#######", img_folder, "~####################")
+    # print("#######", ann_file, "~###########")
+    #
+    # dataset = CocoDetection(
+    #     img_folder,
+    #     ann_file,
+    #     transforms=make_coco_transforms(image_set, args),
+    #     args=args,
+    # )
 
     dataset = CocoDetection(
-        img_folder,
-        ann_file,
+        root / image_set,
+        root / "annotations" / f"{mode}_{image_set}.json",
         transforms=make_coco_transforms(image_set, args),
         args=args,
     )

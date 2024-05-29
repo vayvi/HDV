@@ -9,26 +9,25 @@ from glob import glob
 import argparse
 from PIL import Image
 
-from src.util.primitives import find_circle_center
-
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from util import DATA_DIR
+from util.logger import fprint
+from util.primitives import PRIM_INFO
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--data_root", type=str, default="eida_dataset", help="root directory of the data")
 
 
-def scale_positions(lines, heatmap_scale=(128, 128), im_shape=None):
-    if len(lines) == 0:
+def scale_positions(prims, heatmap_scale=(128, 128), im_shape=None):
+    if len(prims) == 0:
         return []
     fx, fy = heatmap_scale[0] / im_shape[0], heatmap_scale[1] / im_shape[1]
 
-    lines[:, :, 0] = np.clip(lines[:, :, 0] * fx, 0, heatmap_scale[0] - 1e-4)
-    lines[:, :, 1] = np.clip(lines[:, :, 1] * fy, 0, heatmap_scale[1] - 1e-4)
+    prims[:, :, 0] = np.clip(prims[:, :, 0] * fx, 0, heatmap_scale[0] - 1e-4)
+    prims[:, :, 1] = np.clip(prims[:, :, 1] * fy, 0, heatmap_scale[1] - 1e-4)
 
-    return lines
-
+    return prims
 
 
 def get_bbox_from_center_radii(center, radii):
@@ -41,14 +40,28 @@ def get_bbox_from_center_radii(center, radii):
     return bbox
 
 
+def process_gt(data, prim_type="line"):
+    p_info = PRIM_INFO[prim_type]
+    if "circle_centers" in data and prim_type == "circle":
+        if len(data["circle_centers"]) == 0:
+            return []
+        return get_bbox_from_center_radii(data["circle_centers"], data["circle_radii"])
+
+    p_gt = data[f"{prim_type}s"]
+    if len(p_gt) == 0:
+        return []
+    return np.array(data[f"{prim_type}s"]).reshape(p_info["prim_shape"])
+
+
 def main(data_root, exist_ok=True):
     data_dir = DATA_DIR / data_root
-    batch = "valid"
-    output_dir = data_dir / f"{batch}_labels"
+    output_dir = data_dir / "valid_labels"
     os.makedirs(output_dir, exist_ok=exist_ok)
-    anno_file = os.path.join(data_dir, f"{batch}.json")
+    anno_file = os.path.join(data_dir, "valid.json")
+
     im_rescale = (512, 512)
     heatmap_scale = (128, 128)
+
     with open(anno_file, "r") as f:
         dataset = json.load(f)
 
@@ -58,32 +71,31 @@ def main(data_root, exist_ok=True):
     # avg_num_primitves = 0
 
     for data in dataset:
-        print(data["filename"])
-        lines = np.array(data["lines"]).reshape(-1, 2, 2)
-        if len(data["arcs"]) == 0:
-            arcs = []
-        else:
-            arcs = np.array(data["arcs"]).reshape(-1, 3, 2)  # p0, p1, pmid
+        filename = data["filename"]
+        print(filename)
 
-        if len(data["circle_centers"]) == 0:
-            circles = []
-        else:
-            circles = get_bbox_from_center_radii(
-                data["circle_centers"], data["circle_radii"]
-            )
-
-        im_path = str((data_dir / "images") / data["filename"])
-
-        image = Image.open(im_path).convert("RGB")
+        image = Image.open(f"{data_dir}/images/{filename}").convert("RGB")
         im_shape = image.size
-        # print(im_shape)
+
+        # lines = np.array(data["lines"]).reshape(-1, 2, 2)
+        # arc = np.array(data["arcs"]).reshape(-1, 3, 2) if len(data["arcs"]) > 0 else []
+        # if len(data["circle_centers"]) == 0:
+        #    circles = []
+        # else:
+        #     circles = get_bbox_from_center_radii(
+        #         data["circle_centers"], data["circle_radii"]
+        #     )
+
+        lines = process_gt(data, "line")
+        circles = process_gt(data, "circle")
+        arcs = process_gt(data, "arc")
 
         pos_l = scale_positions(lines.copy(), heatmap_scale, im_shape)
         pos_c = scale_positions(circles.copy(), heatmap_scale, im_shape)
         pos_a = scale_positions(arcs.copy(), heatmap_scale, im_shape)
 
         image = image.resize(im_rescale)
-        prefix = data["filename"].split(".")[0]
+        prefix = filename.split(".")[0]
         # num_lines += len(lines)
         # num_circles += len(circles)
         # num_arcs += len(arcs)

@@ -19,7 +19,7 @@ from util.utils import ModelEma, BestMetricHolder
 import util.misc as utils
 
 from datasets import build_dataset, get_coco_api_from_dataset
-from engine import evaluate, train_one_epoch
+from engine import evaluate, train_one_epoch, evaluate_ap
 
 
 def get_args_parser():
@@ -202,7 +202,6 @@ def main(args):
         param_dicts, lr=args.lr, weight_decay=args.weight_decay
     )
 
-    # MARKER VAL / TRAIN DATASET
     dataset_train = build_dataset(image_set="train", args=args)
     dataset_val = build_dataset(image_set="val", args=args)
 
@@ -257,6 +256,7 @@ def main(args):
     output_dir = Path(args.output_dir)
     if os.path.exists(os.path.join(args.output_dir, "checkpoint.pth")):
         args.resume = os.path.join(args.output_dir, "checkpoint.pth")
+
     if args.resume:
         if args.resume.startswith("https"):
             checkpoint = torch.hub.load_state_dict_from_url(
@@ -325,7 +325,10 @@ def main(args):
                 ema_m = ModelEma(model, args.ema_decay)
 
     if args.eval:
+        # Only evaluating the model
         os.environ["EVAL_FLAG"] = "TRUE"
+
+        # MARKER here add evaluate_ap
         test_stats = evaluate(
             model,
             criterion,
@@ -336,6 +339,14 @@ def main(args):
             args.output_dir,
             wo_class_error=wo_class_error,
             args=args,
+        )
+        ap = evaluate_ap(
+            model,
+            data_loader_val,
+            device,
+            postprocessors=postprocessors,
+            run=run,
+            args=args
         )
 
         log_stats = {**{f"test_{k}": v for k, v in test_stats.items()}}
@@ -350,10 +361,13 @@ def main(args):
 
     # holds the epoch number for which the loss was minimal: in our case, easier to use wandb to make sense of loss
     best_map_holder = BestMetricHolder(use_ema=args.use_ema)
+    print(f"Start epoch {args.start_epoch}")
+
     for epoch in range(args.start_epoch, args.epochs):
         epoch_start_time = time.time()
         if args.distributed:
             sampler_train.set_epoch(epoch)
+
         train_stats = train_one_epoch(
             model,
             criterion,
@@ -369,6 +383,7 @@ def main(args):
             ema_m=ema_m,
             run=run,
         )
+
         # if args.output_dir:
         #     checkpoint_paths = [output_dir / "checkpoint.pth"]
 
@@ -398,6 +413,9 @@ def main(args):
                 utils.save_on_master(weights, checkpoint_path)
 
         # eval
+        _ = evaluate_ap(model, data_loader_val, device, postprocessors=postprocessors, run=run, args=args)
+        # logger.info(_)
+
         test_stats = evaluate(
             model,
             criterion,
@@ -410,17 +428,23 @@ def main(args):
             args=args,
             logger=(logger if args.save_log else None),
         )
+
         # new_test_stats = {
         #     f"test_{k}": v
         #     for k, v in test_stats.items()
         #     if not any(str(d) in k for d in range(5))
         # }
+
         log_stats = {
             **{f"train_{k}": v for k, v in train_stats.items()},
             **{f"test_{k}": v for k, v in test_stats.items()},
         }
         # if run:
-        #     run.log(log_stats)
+        #     run.log({
+        #         "train_loss": log_stats["train_loss"],
+        #         "val_loss": log_stats["val_loss"],
+        #     })
+        #     # run.log(log_stats)
 
         if args.use_ema:
             ema_test_stats, ema_coco_evaluator = evaluate(

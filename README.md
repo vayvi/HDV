@@ -119,15 +119,12 @@ Download a model checkpoint:
 
 ```bash
 bash scripts/evaluate_on_eida_final.sh <model_name> <epoch_number> <data_folder_name>
-```
 
-For example:
-```bash
 # for logs/main_model/checkpoint0036.pth on eida_dataset
 bash scripts/evaluate_on_eida_final.sh main_model 0036 eida_dataset
 
 # for logs/eida_demo_model/checkpoint0044.pth on eida_dataset
-bash scripts/evaluate_on_eida_final.sh eida_demo_model 0044
+bash scripts/evaluate_on_eida_final.sh eida_demo_model 0044 eida_dataset
 ```
 
 You should get the AP for different primitives and for different distance thresholds.

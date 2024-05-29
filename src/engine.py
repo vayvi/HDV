@@ -4,14 +4,16 @@ Train and eval functions used in main.py
 """
 
 import math
-import os
 import sys
 from typing import Iterable
-
-from util.utils import slprint, to_device
-
 import torch
+import numpy as np
 
+from evaluation.generate_preds import output_class, scale_positions as pred_scale_positions
+from evaluation.generate_gt import process_gt, scale_positions as gt_scale_positions
+from evaluation.evaluate import get_prim_score, ap
+from util.utils import slprint, to_device
+from util.box_ops import arc_cxcywh2_to_xy3, box_cxcywh_to_xyxy
 import util.misc as utils
 
 
@@ -53,15 +55,13 @@ def train_one_epoch(
         metric_logger.add_meter(
             "class_error", utils.SmoothedValue(window_size=1, fmt="{value:.2f}")
         )
-    header = "Epoch: [{}]".format(epoch)
-    print_freq = 50
 
     _cnt = 0
     if run is not None:
         run.log({"epoch": epoch})
 
     for samples, targets in metric_logger.log_every(
-        data_loader, print_freq, header, logger=logger
+        data_loader, print_freq=50, header=f"\nEpoch: [{epoch}/{args.epochs}]", logger=logger
     ):
         samples = samples.to(device)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
@@ -96,7 +96,7 @@ def train_one_epoch(
         loss_value = losses_reduced_scaled.item()
 
         if not math.isfinite(loss_value):
-            print("Loss is {}, stopping training".format(loss_value))
+            print(f"Loss is {loss_value}, stopping training")
             print(loss_dict_reduced)
             sys.exit(1)
 
@@ -128,17 +128,19 @@ def train_one_epoch(
         new_loss_unscaled = {
             k: v for k, v in loss_dict_reduced_unscaled.items() if log_stat(k)
         }
+
         losses_reduced_scaled = sum(loss_dict_reduced_scaled.values())
 
         loss_value = losses_reduced_scaled.item()
         # metric_logger.update(loss=loss_value, **loss_dict_reduced_scaled, **loss_dict_reduced_unscaled)
         metric_logger.update(loss=loss_value, **new_loss_scaled, **new_loss_unscaled)
+
         if run is not None:
             run.log({"step": _cnt})
             run.log({"loss": loss_value})
             run.log({"class_error": loss_dict_reduced["class_error"]})
-
             run.log(new_loss_scaled)
+
         if "class_error" in loss_dict_reduced:
             metric_logger.update(class_error=loss_dict_reduced["class_error"])
         metric_logger.update(lr=optimizer.param_groups[0]["lr"])
@@ -165,6 +167,80 @@ def train_one_epoch(
     if getattr(criterion, "loss_weight_decay", False):
         resstat.update({f"weight_{k}": v for k, v in criterion.weight_dict.items()})
     return resstat
+
+
+@torch.no_grad()
+def evaluate_ap(model, data_loader, device, postprocessors, run=None, criterion=None, args=None):
+    from util.logger import fprint
+
+    model.eval()
+    # criterion.eval()
+    n_gts = {"line": 0, "circle": 0, "arc": 0}
+    tps = {"line": [], "circle": [], "arc": []}
+    fps = {"line": [], "circle": [], "arc": []}
+    scores = {"line": [], "circle": [], "arc": []}
+    # thres = {"line": 0.75, "circle": 0.75, "arc": 4}
+    thres = {"line": 2, "circle": 2, "arc": 6}
+
+    for samples, targets in data_loader:
+        samples = samples.to(device)
+        targets = [{k: to_device(v, device) for k, v in t.items()} for t in targets]
+
+        with torch.cuda.amp.autocast(enabled=args.amp):
+            # preds = model(samples, targets if args.use_dn else None)
+            preds = model(samples)
+
+        orig_sizes = torch.stack([t["orig_size"] for t in targets], dim=0)
+        output = postprocessors["param"](preds, orig_sizes, to_xyxy=True)[0]
+        out_scores = output["scores"]
+        select_mask = out_scores > 0.4
+
+        pred_dict = {
+            "parameters": output["parameters"][select_mask],
+            "size": orig_sizes,
+            "labels": output["labels"][select_mask],
+            "scores": out_scores[select_mask],
+        }
+
+        for prim_k, prim_type in enumerate(["line", "circle", "arc"]):
+            prim_preds, prim_scores = output_class(pred_dict, prim_type)
+
+            for i, target in enumerate(targets):
+                prim_gt = target[f"{prim_type}s"]
+                target[f"{prim_type}s"] = arc_cxcywh2_to_xy3(prim_gt) if prim_type == "arc" else box_cxcywh_to_xyxy(prim_gt)
+
+                target = {k: v.cpu().numpy() for k, v in target.items()}
+                processed_preds = {
+                    f"{prim_type}s": pred_scale_positions(prim_preds.copy(), (128, 128), target["orig_size"]),
+                    f"{prim_type}_scores": prim_scores,
+                }
+
+                prim_gt = process_gt(target, prim_type)
+                target[f"{prim_type}s"] = pred_scale_positions(prim_gt.copy(), (128, 128),(1, 1))
+
+                res, tp, fp, score = get_prim_score(prim_type, target, processed_preds, prim_k, thres[prim_type])
+                scores[prim_type].append(score)
+                tps[prim_type].append(tp)
+                fps[prim_type].append(fp)
+                n_gts[prim_type] += res[f"n_gt_{prim_type}"]
+
+    tps, fps, scores, n_gts = list(tps.values()), list(fps.values()), list(scores.values()), list(n_gts.values())
+    aps = []
+    for all_tp, all_fp, all_scores, n_gt in zip(tps, fps, scores, n_gts):
+        all_tp = np.concatenate(all_tp)
+        all_fp = np.concatenate(all_fp)
+        all_index = np.argsort(-np.concatenate(all_scores))
+        all_tp = np.cumsum(all_tp[all_index]) / n_gt if n_gt > 0 else [1.0] if len(all_tp) == 0 else [0.0]
+        all_fp = np.cumsum(all_fp[all_index]) / n_gt if n_gt > 0 else [1.0] if len(all_fp) == 0 else [0.0]
+        aps.append(ap(all_tp, all_fp))
+
+    if run is not None:
+        run.log({
+            f"AP_line (thres {thres['line']})": aps[0],
+            f"AP_circle (thres {thres['circle']})": aps[1],
+            f"AP_arc (thres {thres['arc']})": aps[2],
+        })
+    return aps
 
 
 @torch.no_grad()
@@ -196,13 +272,12 @@ def evaluate(
     header = "Test:"
 
     iou_types = tuple(k for k in ("segm", "bbox") if k in postprocessors.keys())
-    useCats = True
     try:
         useCats = args.useCats
     except:
         useCats = True
     if not useCats:
-        print("useCats: {} !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!".format(useCats))
+        print(f"useCats: {useCats} !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 
     # coco_evaluator.coco_eval[iou_types[0]].params.iouThrs = [0, 0.1, 0.5, 0.75]
 
@@ -266,10 +341,10 @@ def evaluate(
             results = postprocessors["segm"](
                 results, outputs, orig_target_sizes, target_sizes
             )
-        res = {
-            target["image_id"].item(): output
-            for target, output in zip(targets, results)
-        }
+        # res = {
+        #     target["image_id"].item(): output
+        #     for target, output in zip(targets, results)
+        # }
 
         if args.save_results:
             # res_score = outputs['res_score']
@@ -331,7 +406,7 @@ def evaluate(
 
         # output_state_dict['gt_info'] = torch.cat(output_state_dict['gt_info'])
         # output_state_dict['res_info'] = torch.cat(output_state_dict['res_info'])
-        savepath = osp.join(args.output_dir, "results-{}.pkl".format(utils.get_rank()))
+        savepath = osp.join(args.output_dir, f"results-{utils.get_rank()}.pkl")
         print("Saving res to {}".format(savepath))
         torch.save(output_state_dict, savepath)
 

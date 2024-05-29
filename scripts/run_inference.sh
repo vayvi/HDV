@@ -5,7 +5,7 @@ ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 
 model_name=$1 || "main_model"
 epoch=$2 || "0036"
-data_dir=$3 || "eida_final"
+data_dir=$3 || "eida_dataset"
 formats=$4 || "npz+svg"
 
 source "$ROOT_DIR"/venv/bin/activate
