@@ -4,6 +4,7 @@ Train and eval functions used in main.py
 """
 
 import math
+import re
 import sys
 from typing import Iterable
 import torch
@@ -12,6 +13,7 @@ import numpy as np
 from evaluation.generate_preds import output_class, scale_positions as pred_scale_positions
 from evaluation.generate_gt import process_gt, scale_positions as gt_scale_positions
 from evaluation.evaluate import get_prim_score, ap
+from util.primitives import PRIMITIVES
 from util.utils import slprint, to_device
 from util.box_ops import arc_cxcywh2_to_xy3, box_cxcywh_to_xyxy
 import util.misc as utils
@@ -170,16 +172,12 @@ def train_one_epoch(
 
 
 @torch.no_grad()
-def evaluate_ap(model, data_loader, device, postprocessors, run=None, criterion=None, args=None):
-    from util.logger import fprint
-
+def evaluate_ap(model, data_loader, device, postprocessors, run=None, args=None, checkpoint_path=None):
     model.eval()
-    # criterion.eval()
     n_gts = {"line": 0, "circle": 0, "arc": 0}
     tps = {"line": [], "circle": [], "arc": []}
     fps = {"line": [], "circle": [], "arc": []}
     scores = {"line": [], "circle": [], "arc": []}
-    # thres = {"line": 0.75, "circle": 0.75, "arc": 4}
     thres = {"line": 2, "circle": 2, "arc": 6}
 
     for samples, targets in data_loader:
@@ -208,17 +206,17 @@ def evaluate_ap(model, data_loader, device, postprocessors, run=None, criterion=
             for i, target in enumerate(targets):
                 prim_gt = target[f"{prim_type}s"]
                 target[f"{prim_type}s"] = arc_cxcywh2_to_xy3(prim_gt) if prim_type == "arc" else box_cxcywh_to_xyxy(prim_gt)
-
                 target = {k: v.cpu().numpy() for k, v in target.items()}
-                processed_preds = {
+                prim_gt = process_gt(target, prim_type)
+                target[f"{prim_type}s"] = pred_scale_positions(prim_gt.copy(), (128, 128),(1, 1))
+
+                prim_pred = {
                     f"{prim_type}s": pred_scale_positions(prim_preds.copy(), (128, 128), target["orig_size"]),
                     f"{prim_type}_scores": prim_scores,
                 }
 
-                prim_gt = process_gt(target, prim_type)
-                target[f"{prim_type}s"] = pred_scale_positions(prim_gt.copy(), (128, 128),(1, 1))
+                res, tp, fp, score = get_prim_score(prim_type, target, prim_pred, prim_k, thres[prim_type])
 
-                res, tp, fp, score = get_prim_score(prim_type, target, processed_preds, prim_k, thres[prim_type])
                 scores[prim_type].append(score)
                 tps[prim_type].append(tp)
                 fps[prim_type].append(fp)
@@ -234,13 +232,15 @@ def evaluate_ap(model, data_loader, device, postprocessors, run=None, criterion=
         all_fp = np.cumsum(all_fp[all_index]) / n_gt if n_gt > 0 else [1.0] if len(all_fp) == 0 else [0.0]
         aps.append(ap(all_tp, all_fp))
 
+    avg_prec = {
+        f"AP_line (thres {thres['line']})": aps[0],
+        f"AP_circle (thres {thres['circle']})": aps[1],
+        f"AP_arc (thres {thres['arc']})": aps[2],
+    }
+
     if run is not None:
-        run.log({
-            f"AP_line (thres {thres['line']})": aps[0],
-            f"AP_circle (thres {thres['circle']})": aps[1],
-            f"AP_arc (thres {thres['arc']})": aps[2],
-        })
-    return aps
+        run.log(avg_prec)
+    return avg_prec
 
 
 @torch.no_grad()
@@ -251,7 +251,6 @@ def evaluate(
     data_loader,
     base_ds,
     device,
-    output_dir,
     wo_class_error=False,
     args=None,
     logger=None,
@@ -269,8 +268,6 @@ def evaluate(
         metric_logger.add_meter(
             "class_error", utils.SmoothedValue(window_size=1, fmt="{value:.2f}")
         )
-    header = "Test:"
-
     iou_types = tuple(k for k in ("segm", "bbox") if k in postprocessors.keys())
     try:
         useCats = args.useCats
@@ -284,7 +281,7 @@ def evaluate(
     _cnt = 0
     output_state_dict = {}  # for debug only
     for samples, targets in metric_logger.log_every(
-        data_loader, 50, header, logger=logger
+        data_loader, 50, "Test:", logger=logger
     ):
         samples = samples.to(device)
 

@@ -262,8 +262,8 @@ def vflip(image, target):
 
 
 def ccw_rotation(image, target):
-    rotateded_image = F.rotate(image, 90, expand=True)
-    w, h = rotateded_image.size
+    rotated_image = F.rotate(image, 90, expand=True)
+    w, h = rotated_image.size
     # print("inside ccw rotation")
     target = target.copy()
 
@@ -316,12 +316,12 @@ def ccw_rotation(image, target):
         target["arcs"] = get_default_arc(arcs)
 
     # target["boxes6d"] = torch.cat([target[f"{primitive}s"] for primitive in PRIMITIVES])
-    return rotateded_image, target
+    return rotated_image, target
 
 
 def cw_rotation(image, target):
-    rotateded_image = F.rotate(image, -90, expand=True)
-    w, h = rotateded_image.size
+    rotated_image = F.rotate(image, -90, expand=True)
+    w, h = rotated_image.size
     target = target.copy()
     target["size"] = torch.tensor([h, w])
 
@@ -376,7 +376,7 @@ def cw_rotation(image, target):
 
     # target["boxes6d"] = torch.cat([target[f"{primitive}s"] for primitive in PRIMITIVES])
 
-    return rotateded_image, target
+    return rotated_image, target
 
 
 def resize(image, target, size, max_size=None):

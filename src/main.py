@@ -3,8 +3,10 @@
 # ------------------------------------------------------------------------
 import argparse
 import datetime
+import glob
 import json
 import random
+import re
 import time
 from pathlib import Path
 import os, sys
@@ -13,7 +15,7 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader, DistributedSampler
 from util.get_param_dicts import get_param_dict
-from util.logger import setup_logger
+from util.logger import setup_logger, fprint
 from util.slconfig import DictAction, SLConfig
 from util.utils import ModelEma, BestMetricHolder
 import util.misc as utils
@@ -63,6 +65,8 @@ def get_args_parser():
         "--start_epoch", default=0, type=int, metavar="N", help="start epoch"
     )
     parser.add_argument("--eval", action="store_true")
+    parser.add_argument("--eval_all", action="store_true", help="Evaluate model on every epochs available")
+
     parser.add_argument("--num_workers", default=0, type=int)
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--find_unused_params", action="store_true")
@@ -106,13 +110,15 @@ def main(args):
     print(f"Loading config file from {args.config_file}")
     cfg = SLConfig.fromfile(args.config_file)
 
+    model_dir = Path(args.output_dir)
+    config_path = model_dir / "config_cfg.py"
+    info_path = model_dir / "info.txt"
+
     if args.options is not None:
         cfg.merge_from_dict(args.options)
     if args.rank == 0:
-        save_cfg_path = os.path.join(args.output_dir, "config_cfg.py")
-        cfg.dump(save_cfg_path)
-        save_json_path = os.path.join(args.output_dir, "config_args_raw.json")
-        with open(save_json_path, "w") as f:
+        cfg.dump(f"{config_path}")
+        with open(model_dir / "config_args_raw.json", "w") as f:
             json.dump(vars(args), f, indent=2)
     cfg_dict = cfg._cfg_dict.to_dict()
     args_vars = vars(args)
@@ -126,9 +132,9 @@ def main(args):
         import wandb
         run = wandb.init(
             project="dino-primitives",
-            name=f"{args.output_dir.split('/')[-1]}_{datetime.date.today()}",
+            name=f"{model_dir.name}_{datetime.date.today()}",
             config=cfg_dict,
-            notes=args.output_dir,
+            notes=model_dir.name,
         )
     else:
         run = None
@@ -139,10 +145,10 @@ def main(args):
     if not getattr(args, "debug", None):
         args.debug = False
 
-    os.makedirs(args.output_dir, exist_ok=True)
+    os.makedirs(model_dir, exist_ok=True)
 
     logger = setup_logger(
-        output=os.path.join(args.output_dir, "info.txt"),
+        output=f"{info_path}",
         distributed_rank=args.rank,
         color=False,
         name="detr",
@@ -150,10 +156,10 @@ def main(args):
     logger.info(f"git:\n {utils.get_sha()}\n")
     logger.info(f"Command: {' '.join(sys.argv)}")
     if args.rank == 0:
-        save_json_path = os.path.join(args.output_dir, "config_args_all.json")
-        with open(save_json_path, "w") as f:
+        with open(model_dir / "config_args_all.json", "w") as f:
             json.dump(vars(args), f, indent=2)
-        logger.info(f"Full config saved to {save_json_path}")
+        logger.info(f"Full config saved to {model_dir}/config_args_all.json")
+
     logger.info(f"world size: {args.world_size}")
     logger.info(f"rank: {args.rank}")
     logger.info(f"local_rank: {args.local_rank}")
@@ -202,6 +208,7 @@ def main(args):
         param_dicts, lr=args.lr, weight_decay=args.weight_decay
     )
 
+    ### DATASET ###
     dataset_train = build_dataset(image_set="train", args=args)
     dataset_val = build_dataset(image_set="val", args=args)
 
@@ -230,7 +237,9 @@ def main(args):
         collate_fn=utils.collate_fn,
         num_workers=args.num_workers,
     )
+    base_ds = get_coco_api_from_dataset(dataset_val)
 
+    ### LEARNING RATE ###
     if args.onecyclelr:
         lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(
             optimizer,
@@ -247,15 +256,48 @@ def main(args):
     else:
         lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.lr_drop)
 
-    base_ds = get_coco_api_from_dataset(dataset_val)
+    ### CHECKPOINT ###
+    if args.eval_all:
+        step = 0
+        for checkpoint_path in sorted(glob.glob(f"{model_dir}/checkpoint*.pth")):
+            fprint(f"Evaluating {checkpoint_path}...", color="yellow")
+
+            match = re.search(r'checkpoint(\d+)\.pth$', checkpoint_path)
+            run.log({"step": step})
+            run.log({"epoch": int(match.group(1)) if match else 0})
+
+            checkpoint = torch.load(checkpoint_path, map_location="cpu")["model"]
+            model.load_state_dict(checkpoint)
+            try:
+                stats = evaluate(model, criterion, postprocessors, data_loader_val, base_ds, device, wo_class_error=wo_class_error, args=args)
+                main_stats = {
+                    "loss": stats["loss"],
+                    "loss_param": stats["loss_param"],
+                    "class_error": stats["class_error"]
+                }
+                fprint(main_stats)
+                run.log(main_stats)
+            except Exception as e:
+                fprint(f"Error when evaluating {checkpoint_path}", e=e)
+                continue
+
+            try:
+                ap = evaluate_ap(model, data_loader_val, device, postprocessors=postprocessors, run=run, args=args, checkpoint_path=checkpoint_path)
+                fprint(ap)
+            except Exception as e:
+                fprint(f"Error when computing average precision for {checkpoint_path}", e=e)
+                continue
+
+            step += 120
+            torch.cuda.empty_cache()
+        return
 
     if args.frozen_weights is not None:
         checkpoint = torch.load(args.frozen_weights, map_location="cpu")
         model_without_ddp.detr.load_state_dict(checkpoint["model"])
 
-    output_dir = Path(args.output_dir)
-    if os.path.exists(os.path.join(args.output_dir, "checkpoint.pth")):
-        args.resume = os.path.join(args.output_dir, "checkpoint.pth")
+    if os.path.exists(model_dir / "checkpoint.pth"):
+        args.resume = f"{model_dir}/checkpoint.pth"
 
     if args.resume:
         if args.resume.startswith("https"):
@@ -328,7 +370,6 @@ def main(args):
         # Only evaluating the model
         os.environ["EVAL_FLAG"] = "TRUE"
 
-        # MARKER here add evaluate_ap
         test_stats = evaluate(
             model,
             criterion,
@@ -336,11 +377,15 @@ def main(args):
             data_loader_val,
             base_ds,
             device,
-            args.output_dir,
             wo_class_error=wo_class_error,
             args=args,
         )
-        ap = evaluate_ap(
+        log_stats = {**{f"test_{k}": v for k, v in test_stats.items()}}
+        if model_dir and utils.is_main_process():
+            with (model_dir / "log.txt").open("a") as f:
+                f.write(json.dumps(log_stats) + "\n")
+
+        _ = evaluate_ap(
             model,
             data_loader_val,
             device,
@@ -348,11 +393,6 @@ def main(args):
             run=run,
             args=args
         )
-
-        log_stats = {**{f"test_{k}": v for k, v in test_stats.items()}}
-        if args.output_dir and utils.is_main_process():
-            with (output_dir / "log.txt").open("a") as f:
-                f.write(json.dumps(log_stats) + "\n")
 
         return
 
@@ -384,17 +424,14 @@ def main(args):
             run=run,
         )
 
-        # if args.output_dir:
-        #     checkpoint_paths = [output_dir / "checkpoint.pth"]
-
         if not args.onecyclelr:
             lr_scheduler.step()
 
-        if args.output_dir:
-            checkpoint_paths = [output_dir / "checkpoint.pth"]
+        if model_dir:
+            checkpoint_paths = [model_dir / "checkpoint.pth"]
             # extra checkpoint before LR drop and every 100 epochs
             if (epoch + 1) % args.lr_drop == 0 or (epoch + 1) % args.save_checkpoint_interval == 0:
-                checkpoint_paths.append(output_dir / f"checkpoint{epoch:04}.pth")
+                checkpoint_paths.append(model_dir / f"checkpoint{epoch:04}.pth")
 
             for checkpoint_path in checkpoint_paths:
                 weights = {
@@ -405,11 +442,9 @@ def main(args):
                     "args": args,
                 }
                 if args.use_ema:
-                    weights.update(
-                        {
-                            "ema_model": ema_m.module.state_dict(),
-                        }
-                    )
+                    weights.update({
+                        "ema_model": ema_m.module.state_dict(),
+                    })
                 utils.save_on_master(weights, checkpoint_path)
 
         # eval
@@ -423,7 +458,6 @@ def main(args):
             data_loader_val,
             base_ds,
             device,
-            args.output_dir,
             wo_class_error=wo_class_error,
             args=args,
             logger=(logger if args.save_log else None),
@@ -454,7 +488,6 @@ def main(args):
                 data_loader_val,
                 base_ds,
                 device,
-                args.output_dir,
                 wo_class_error=wo_class_error,
                 args=args,
                 logger=(logger if args.save_log else None),
@@ -463,7 +496,7 @@ def main(args):
             map_ema = ema_test_stats["coco_eval_bbox"][0]
             _isbest = best_map_holder.update(map_ema, epoch, is_ema=True)
             if _isbest:
-                checkpoint_path = output_dir / "checkpoint_best_ema.pth"
+                checkpoint_path = model_dir / "checkpoint_best_ema.pth"
                 utils.save_on_master(
                     {
                         "model": ema_m.module.state_dict(),
@@ -487,8 +520,8 @@ def main(args):
         epoch_time_str = str(datetime.timedelta(seconds=int(epoch_time)))
         log_stats["epoch_time"] = epoch_time_str
 
-        if args.output_dir and utils.is_main_process():
-            with (output_dir / "log.txt").open("a") as f:
+        if model_dir and utils.is_main_process():
+            with info_path.open("a") as f:
                 f.write(json.dumps(log_stats) + "\n")
 
     total_time = time.time() - start_time

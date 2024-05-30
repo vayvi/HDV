@@ -9,15 +9,15 @@ model_name=${1:-"main_model"}
 ground_truth=$2
 device_nb=${3:-0}
 batch_size=${4:-2}
-max_size=${4:-1000} # reduce to prevent torch.cuda.OutOfMemoryError
-learning_rate=${5:-0.0001}
-epoch_nb=${5:-46}
+max_size=${5:-1000} # reduce to prevent torch.cuda.OutOfMemoryError
+learning_rate=${6:-0.0001}
+epoch_nb=${7:-50}
 
 export CUDA_VISIBLE_DEVICES=$device_nb
 
 if [ -z "$ground_truth" ]; then
     echo "No ground truth provided"
-    echo "Usage: $0 <model_name> <ground_truth> <device_nb?> <batch_size?> <max_size?> <learning_rate?>"
+    echo "Usage: $0 <model_name> <ground_truth> <device_nb?> <batch_size?> <max_size?> <learning_rate?> <epoch_nb?>"
     exit 1
 fi
 

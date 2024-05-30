@@ -12,6 +12,7 @@ PRIM_INFO = {
     'circle': {'id': 1, 'color': 'green', 'line_width': 1, 'indices': slice(4, 8), 'param_shape': (-1, 3), 'prim_shape': (-1, 2, 2), 'x_border_idx': [0, 2], 'y_border_idx': [1, 3]},
     'arc': {'id': 2, 'color': 'blue', 'line_width': 1, 'indices': slice(8, 14), 'param_shape': (-1, 3, 2), 'prim_shape': (-1, 3, 2), 'x_border_idx': [0, 2, 4], 'y_border_idx': [1, 3, 5]}
 }
+PRIMITIVES = list(PRIM_INFO.keys())
 
 
 class BadPath(Exception):
