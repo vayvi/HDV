@@ -129,9 +129,10 @@ def main(args):
             raise ValueError(f"Key {f} can used by args only")
 
     if args.use_wandb:
+        is_eval = args.eval or args.eval_all
         import wandb
         run = wandb.init(
-            project="dino-primitives",
+            project=f"{'eval' if is_eval else 'train'}-dino-primitives",
             name=f"{model_dir.name}_{datetime.date.today()}",
             config=cfg_dict,
             notes=model_dir.name,
@@ -258,16 +259,22 @@ def main(args):
 
     ### CHECKPOINT ###
     if args.eval_all:
-        step = 0
+        step = 100
+        model = model_without_ddp
         for checkpoint_path in sorted(glob.glob(f"{model_dir}/checkpoint*.pth")):
             fprint(f"Evaluating {checkpoint_path}...", color="yellow")
 
-            match = re.search(r'checkpoint(\d+)\.pth$', checkpoint_path)
-            run.log({"step": step})
-            run.log({"epoch": int(match.group(1)) if match else 0})
+            if "checkpoint.pth" in checkpoint_path:
+                # only evaluate numbered checkpoints
+                continue
 
-            checkpoint = torch.load(checkpoint_path, map_location="cpu")["model"]
-            model.load_state_dict(checkpoint)
+            checkpoint = torch.load(checkpoint_path, map_location="cpu")
+            if run is not None:
+                epoch = checkpoint["epoch"]
+                run.log({"step": step * epoch})
+                run.log({"epoch": epoch})
+
+            model.load_state_dict(checkpoint["model"])
             try:
                 stats = evaluate(model, criterion, postprocessors, data_loader_val, base_ds, device, wo_class_error=wo_class_error, args=args)
                 main_stats = {
@@ -276,7 +283,8 @@ def main(args):
                     "class_error": stats["class_error"]
                 }
                 fprint(main_stats)
-                run.log(main_stats)
+                if run is not None:
+                    run.log(main_stats)
             except Exception as e:
                 fprint(f"Error when evaluating {checkpoint_path}", e=e)
                 continue
@@ -288,8 +296,7 @@ def main(args):
                 fprint(f"Error when computing average precision for {checkpoint_path}", e=e)
                 continue
 
-            step += 120
-            torch.cuda.empty_cache()
+        torch.cuda.empty_cache()
         return
 
     if args.frozen_weights is not None:

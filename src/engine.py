@@ -222,21 +222,15 @@ def evaluate_ap(model, data_loader, device, postprocessors, run=None, args=None,
                 fps[prim_type].append(fp)
                 n_gts[prim_type] += res[f"n_gt_{prim_type}"]
 
-    tps, fps, scores, n_gts = list(tps.values()), list(fps.values()), list(scores.values()), list(n_gts.values())
-    aps = []
-    for all_tp, all_fp, all_scores, n_gt in zip(tps, fps, scores, n_gts):
-        all_tp = np.concatenate(all_tp)
-        all_fp = np.concatenate(all_fp)
-        all_index = np.argsort(-np.concatenate(all_scores))
-        all_tp = np.cumsum(all_tp[all_index]) / n_gt if n_gt > 0 else [1.0] if len(all_tp) == 0 else [0.0]
-        all_fp = np.cumsum(all_fp[all_index]) / n_gt if n_gt > 0 else [1.0] if len(all_fp) == 0 else [0.0]
-        aps.append(ap(all_tp, all_fp))
-
-    avg_prec = {
-        f"AP_line (thres {thres['line']})": aps[0],
-        f"AP_circle (thres {thres['circle']})": aps[1],
-        f"AP_arc (thres {thres['arc']})": aps[2],
-    }
+    avg_prec = {}
+    for prim_type in ["line", "circle", "arc"]:
+        all_tp = np.concatenate(tps[prim_type])
+        all_fp = np.concatenate(fps[prim_type])
+        sorted_indices = np.argsort(-np.concatenate(scores[prim_type]))
+        # nb_gt = n_gts[prim_type] if n_gts[prim_type] > 0 else [1.0] if len(all_tp) == 0 else [0.0]
+        all_tp = np.cumsum(all_tp[sorted_indices]) / n_gts[prim_type]
+        all_fp = np.cumsum(all_fp[sorted_indices]) / n_gts[prim_type]
+        avg_prec[f"AP_{prim_type} (thres {thres[prim_type]})"] = ap(all_tp, all_fp)
 
     if run is not None:
         run.log(avg_prec)
