@@ -37,11 +37,11 @@ def prepare_for_cdn(
     """
     To the DINO denoising implementation, we add noise over the primitive parameters and not only the boxes
     ------------------------------------------------------------------------
-    A major difference of DINO from DN-DETR is that the author process pattern embedding pattern embedding in its detector
+    A major difference of DINO from DN-DETR is that the author process pattern embedding in its detector
     forward function and use learnable tgt embedding, so we change this function a little bit.
     :param dn_args: targets, dn_number, label_noise_ratio, box_noise_scale
     :param training: if it is training or inference
-    :param num_queries: number of queires
+    :param num_queries: number of queries
     :param num_classes: number of classes
     :param hidden_dim: transformer hidden dim
     :param label_enc: encode labels in dn
@@ -72,8 +72,8 @@ def prepare_for_cdn(
 
         known_indice = torch.nonzero(unmask_label + unmask_param)
         known_indice = known_indice.view(-1)
-
         known_indice = known_indice.repeat(2 * dn_number, 1).view(-1)
+
         known_labels = labels.repeat(2 * dn_number, 1).view(-1)
         known_bid = batch_idx.repeat(2 * dn_number, 1).view(-1)
         known_params = parameters.repeat(2 * dn_number, 1)

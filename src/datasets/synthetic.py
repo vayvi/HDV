@@ -19,6 +19,7 @@ import numpy as np
 from tqdm import tqdm
 import argparse
 
+# MARKER : model to process manually annotated data into coco format / add arcs
 
 parser = argparse.ArgumentParser(description="Process raw synthetic data into coco format annotations")
 def get_args():
@@ -35,10 +36,7 @@ def main(args):
     anno_id = 0
 
     for batch in ["val", "train"]:
-        if batch == "train":
-            anno_file = os.path.join(src_dir, "train.json")
-        else:
-            anno_file = os.path.join(src_dir, "valid.json")
+        anno_file = os.path.join(src_dir, f"{batch}.json")
 
         with open(anno_file, "r") as f:
             dataset = json.load(f)

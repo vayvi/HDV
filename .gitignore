@@ -21,4 +21,4 @@ data/
 src/models/dino/ops/build
 src/models/dino/ops/dist
 .idea/
-
+venv/

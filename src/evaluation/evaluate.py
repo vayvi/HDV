@@ -10,6 +10,7 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from util import ROOT_DIR
+from util.logger import fprint
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -42,8 +43,8 @@ parser.add_argument(
 )
 
 
-def get_l2_distance(pred_circles, gt_circles):
-    diff = ((pred_circles[:, None, :, None] - gt_circles[:, None]) ** 2).sum(-1)
+def get_l2_distance(pred_lines, gt_lines):
+    diff = ((pred_lines[:, None, :, None] - gt_lines[:, None]) ** 2).sum(-1)
     diff = np.minimum(
         (np.sqrt(diff[:, :, 0, 0] + diff[:, :, 1, 1]) / 2),
         (np.sqrt(diff[:, :, 0, 1] + diff[:, :, 1, 0]) / 2),
@@ -69,7 +70,6 @@ def get_4_cardinal_pts_circle(pred_circles):
 
 
 def get_l2_distance_circles(pred_circles, gt_circles):
-
     cardinal_pts_pred = get_4_cardinal_pts_circle(pred_circles)
     cardinal_pts_gt = get_4_cardinal_pts_circle(gt_circles)
 
@@ -108,36 +108,39 @@ def get_precision_recall_fscore(tp, fp, fn):
     return precision, recall, fscore
 
 
-def msTPFP(line_pred, line_gt, threshold, get_fn=False, primitive_k=0):
-    if (len(line_gt) > 0) and (len(line_pred) > 0):
+def msTPFP(prim_pred, prim_gt, threshold, get_fn=False, primitive_k=0):
+    gt_size = prim_gt.size if type(prim_gt) == np.ndarray else len(prim_gt)
+    pred_size = prim_pred.size if type(prim_pred) == np.ndarray else len(prim_pred)
+
+    if (gt_size > 0) and (pred_size > 0):
         if primitive_k == 0:
-            diff = get_l2_distance(line_pred, line_gt)
+            diff = get_l2_distance(prim_pred, prim_gt)
         elif primitive_k == 1:
-            diff = get_l2_distance_circles(line_pred, line_gt)
+            diff = get_l2_distance_circles(prim_pred, prim_gt)
         else:
-            diff = get_l2_distance_arcs(line_pred, line_gt)
+            diff = get_l2_distance_arcs(prim_pred, prim_gt)
 
         choice = np.argmin(diff, 1)
         dist = np.min(diff, 1)
-        hit = np.zeros(len(line_gt), bool)
-        tp = np.zeros(len(line_pred), float)
-        fp = np.zeros(len(line_pred), float)
+        hit = np.zeros(len(prim_gt), bool)
+        tp = np.zeros(len(prim_pred), float)
+        fp = np.zeros(len(prim_pred), float)
 
-        for i in range(len(line_pred)):
+        for i in range(len(prim_pred)):
             if dist[i] < threshold and not hit[choice[i]]:
                 hit[choice[i]] = True
                 tp[i] = 1
             else:
                 fp[i] = 1
         fn = 1 - hit
-    elif len(line_gt) == 0:
-        tp = np.zeros(len(line_pred), float)
-        fp = np.ones(len(line_pred))
-        fn = np.zeros(len(line_gt), float)
+    elif gt_size == 0:
+        tp = np.zeros(len(prim_pred), float)
+        fp = np.ones(len(prim_pred))
+        fn = np.zeros(len(prim_gt), float)
     else:
-        tp = np.zeros(len(line_pred), float)
-        fp = np.zeros(len(line_pred), float)
-        fn = np.ones(len(line_gt), float)
+        tp = np.zeros(len(prim_pred), float)
+        fp = np.zeros(len(prim_pred), float)
+        fn = np.ones(len(prim_gt), float)
     if get_fn:
         return tp.sum(), fp.sum(), fn.sum()
 
@@ -156,11 +159,11 @@ def ap(tp, fp):
 
 
 def get_prim_score(prim_type, fgt, fpred, prim_k=0, threshold=5):
-    pred, score = fpred[prim_type], fpred[f"{prim_type}_scores"]
+    pred, score = fpred[f"{prim_type}s"], fpred[f"{prim_type}_scores"]
 
     try:
         gt = fgt[f"{prim_type}s"][:, :, :2]
-    except IndexError:
+    except (IndexError, TypeError):
         gt = []
 
     tp, fp = msTPFP(pred, gt, threshold, primitive_k=prim_k)
@@ -186,9 +189,9 @@ def get_prim_score(prim_type, fgt, fpred, prim_k=0, threshold=5):
 def get_scores(
     preds_folder: Path,
     gt_folder: Path,
-    line_threshold=5,
-    circle_threshold=5,
-    arc_threshold=5,
+    l_threshold=5,
+    c_threshold=5,
+    a_threshold=5,
     per_image=True,
 ):
     gts = sorted(glob.glob(f"{gt_folder}/valid_labels/*.npz"))
@@ -198,29 +201,25 @@ def get_scores(
     tps = {"line": [], "circle": [], "arc": []}
     fps = {"line": [], "circle": [], "arc": []}
     scores = {"line": [], "circle": [], "arc": []}
-    thres = {"line": line_threshold, "circle": circle_threshold, "arc": arc_threshold}
+    thres = {"line": l_threshold, "circle": c_threshold, "arc": a_threshold}
 
     results = []
 
     for gt_path in gts:
         base_name = os.path.basename(gt_path).split(".")[0]
 
-        with np.load(preds_folder / f"{base_name}.npz") as fpred:
-            pass
-        with np.load(gt_path) as fgt:
-            pass
-
         result = {
             "image": base_name,
         }
 
-        for prim_type in ["line", "circle", "arc"]:
-            res, tp, fp, score = get_prim_score(prim_type, fgt, fpred, 0, thres[prim_type])
-            scores[prim_type].append(score)
-            tps[prim_type].append(tp)
-            fps[prim_type].append(fp)
-            n_gts[prim_type] += res[f"n_gt_{prim_type}"]
-            result.update(res)
+        with np.load(preds_folder / f"{base_name}.npz") as fpred, np.load(gt_path) as fgt:
+            for prim_k, prim_type in enumerate(["line", "circle", "arc"]):
+                res, tp, fp, score = get_prim_score(prim_type, fgt, fpred, prim_k, thres[prim_type])
+                scores[prim_type].append(score)
+                tps[prim_type].append(tp)
+                fps[prim_type].append(fp)
+                n_gts[prim_type] += res[f"n_gt_{prim_type}"]
+                result.update(res)
 
         results.append(result)
 
@@ -244,42 +243,49 @@ def get_scores(
             "n_gt_arc": n_gts["arc"],
         }
     )
+    fprint({
+        f"AP_line (thres {thres['line']})": aps[0],
+        f"AP_circle (thres {thres['circle']})": aps[1],
+        f"AP_arc (thres {thres['arc']})": aps[2],
+    })
     return aps, results
 
 
 if __name__ == "__main__":
     args = parser.parse_args()
 
-    exp_folder = ROOT_DIR / "logs" / args.model_name
+    model_name = args.model_name
+
+    model_folder = ROOT_DIR / "logs" / args.model_name
     gt_folder = ROOT_DIR / "data" / args.data_folder_name
-    pred_folder = exp_folder / f"npz_preds{args.epoch}"
-    eval_folder = exp_folder / f"evaluation{args.epoch}"
+    pred_folder = gt_folder / f"npz_preds_{model_name}{args.epoch}"
+    eval_folder = gt_folder / f"evaluation_{model_name}{args.epoch}"
 
     os.makedirs(eval_folder, exist_ok=True)
 
-    for line_threshold, circle_threshold, arc_threshold in zip(
+    for l_threshold, c_threshold, a_threshold in zip(
         args.line_thresholds, args.circle_thresholds, args.arc_thresholds
     ):
 
         aps, results = get_scores(
             pred_folder,
             gt_folder,
-            line_threshold=line_threshold,
-            circle_threshold=circle_threshold,
-            arc_threshold=arc_threshold,
+            l_threshold=l_threshold,
+            c_threshold=c_threshold,
+            a_threshold=a_threshold,
         )
 
         df = pd.DataFrame(results)
-        df["line_threshold"] = line_threshold
-        df["circle_threshold"] = circle_threshold
-        df["arc_threshold"] = arc_threshold
+        df["line_threshold"] = l_threshold
+        df["circle_threshold"] = c_threshold
+        df["arc_threshold"] = a_threshold
         df["AP_line"] = np.round(df["AP_line"], 3)
         df["AP_circle"] = np.round(df["AP_circle"], 3)
         df["AP_arc"] = np.round(df["AP_arc"], 3)
-        df.to_csv(eval_folder / f"results_{line_threshold}_{circle_threshold}.csv")
+        df.to_csv(eval_folder / f"results_{l_threshold}-{a_threshold}.csv")
 
         print(f"""
-            🪈 LINE => Threshold: {line_threshold} / Average precision: {aps[0]}
-            🪩 CIRCLE => Threshold: {circle_threshold} / Average precision: {aps[1]}
-            󠁼🌈 ARC => Threshold: {arc_threshold} / Average precision: {aps[2]}
+        🪈 LINE	Threshold: {l_threshold:.2f}	Average precision:	{aps[0]}
+        🪩 CIRCLE	Threshold: {c_threshold:.2f}	Average precision:	{aps[1]}
+        󠁼🌈 ARC	Threshold: {a_threshold:.2f}	Average precision:	{aps[2]}
         """)

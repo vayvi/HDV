@@ -74,6 +74,10 @@ HDV/
       └── checkpoint0012.pth
       └── checkpoint0036.pth
       └── config_cfg.py
+    └── other_model/
+      └── checkpoint0044.pth
+      └── config_cfg.py
+    ...
 ```
 
 You can process the ground-truth data for evaluation using:
@@ -108,53 +112,124 @@ Download the synthetic resource folder [here](https://www.dropbox.com/s/tiqqb166
   <summary>1. Evaluate our pretrained models</summary>
 
 After downloading and processing the evaluation dataset, you can evaluate the pretrained model as follows.
-Download a model checkpoint, for example "checkpoint0044.pth" and launch
+Download a model checkpoint: 
+- `model_name` corresponds to the folder inside `logs/` where the checkpoint file is located
+- `epoch_number` epoch number of the checkpoint file to be used
+- `data_folder_name` is the name of the folder inside `data/` where the evaluation dataset is located (default to `eida_dataset`)
 
 ```bash
-bash scripts/evaluate_on_eida_final.sh <model_name> <epoch_number>
-```
+bash scripts/evaluate_on_eida_final.sh <model_name> <epoch_number> <data_folder_name>
 
-For example:
-```bash
-bash scripts/evaluate_on_eida_final.sh main_model 0044
+# for logs/main_model/checkpoint0036.pth on eida_dataset
+bash scripts/evaluate_on_eida_final.sh main_model 0036 eida_dataset
+
+# for logs/eida_demo_model/checkpoint0044.pth on eida_dataset
+bash scripts/evaluate_on_eida_final.sh eida_demo_model 0044 eida_dataset
 ```
 
 You should get the AP for different primitives and for different distance thresholds.
+
+If you want to run evaluation on all checkpoints available for a given model, you can use the following script:
+```bash
+bash scripts/evaluate_models_on_gt.sh <ground_truth> <?model_name> <?device_nb> <?batch_size> <?max_size>
+
+# to evaluate all available models on ground truth (cf. svg_to_train.py script)
+bash scripts/evaluate_models_on_gt.sh eida_dataset/groundtruth
+
+# to evaluate only one model
+bash scripts/evaluate_models_on_gt.sh eida_dataset/groundtruth main_model
+````
 </details>
 
 <details>
 
   <summary>2. Inference and Visualization</summary>
 
-For inference and visualizing results over custom images, you can use the [notebook](src/inference.ipynb).
+For inference and visualizing results over custom images, you can use this [notebook](src/notebooks/inference.ipynb).
+
+You can also use the following script to run inference on a whole dataset (jpg images located in `data/<data_set>/images/`):
+```bash
+bash scripts/run_inference.sh <model_name> <epoch_number> <data_set> <export_formats>
+
+# for logs/main_model/checkpoint0036.pth on eida_dataset with svg and npz export formats
+bash scripts/run_inference.sh main_model 0036 eida_dataset svg+npz
+```
+
+Results will be saved in `data/<data_set>/<export_format>_preds_<model_name><epoch_number>/`.
+
+You can compare different inferences on the same dataset with (outputs an HTML file `data/<data_set>/<filename>.html`):
+```bash
+python src/util/html.py --data_set <data_set> --filename <filename>
+```
 
 </details>
 
 # Training
 <details>
   <summary>1. Training from scratch on synthetic data</summary>
-To re-train the model from scratch on the synthetic dataset, you can launch 
+
+To re-train the model from scratch on the synthetic dataset (created on the fly), you can launch 
 
 ```bash
-bash scripts/train_model.sh config/
+bash scripts/train_model.sh
 ```
 </details>
 
 <details>
   <summary>2. Training on a custom dataset</summary>
-To train on a custom dataset, the custom dataset annotations should be in a COCO-like format, and should be in 
+
+Turn SVG files into COCO-like annotations using the following script:
+- `data_set` folder inside `data/` where the evaluation dataset is located (default to `eida_dataset`)
+- `sanity_check` add it whether you want to visualize the processed annotations (will save the images in `data/<data_set>/svgs/`)
+- `train_portion` float value in between 0 and 1 to split the dataset into train and val (default to `0.8`)
 
 ```bash
   data/
-    └── custom_dataset_processed/
-      └── annotations/
-      └── train/
-      └── val/
+    └── <dataset_name>/
+      └── images/     # folder containing annotated images in the svgs folder
+      └── svgs/       # folder containing SVG files containing ground truth for training
 ```
-You should then adjust the coco_path variable to `custom_dataset_processed` in the [config](src/config/DINO_4scale.py) file.
+
+```bash
+python src/svg_to_train.py --data_set <dataset_name> --sanity_check
+
+# for eida_dataset
+python src/svg_to_train.py --data_set eida_dataset --sanity_check
+```
+
+Training data will be created in `data/<dataset_name>/groundtruth/`. You can use it to run the finetuning script.
+To train on a custom dataset, the ground truth annotations should be in a COCO-like format, thus be structured as follows: 
+
+```bash
+  data/
+    └── <groundtruth_data>/
+      └── annotations/     # folder containing JSON files (one for train, one for val) in COCO-like format
+      └── train/           # train images (corresponding to train.json)
+      └── val/             # val images (corresponding to val.json)
+```
+
+Run the following script to train the model on the custom dataset:
+- `model_name` corresponds to the folder inside `logs/` where the checkpoint file is located (will take the last checkpoint)
+- `groundtruth_dir` relative path to a folder inside `data/` where the ground truth dataset is located
+- `device_nb` GPU device number to use for training (default to `0`)
+- `batch_size` batch size for training (default to `2`)
+- `max_size` maximum image size for data augmentation (default to `1000`), to prevent out of memory errors
+- `learning_rate` learning rate for training (default to `0.0001`)
+- `epoch_nb` number of epochs to train (default to `50`)
+
+```bash
+bash scripts/finetune_model.sh <model_dirname> <groundtruth_dir> <device_nb> <batch_size> <max_size> <learning_rate> <epoch_nb>
+
+# to use the data generated by the previous script to finetuning main_model on device #2
+bash scripts/finetune_model.sh main_model eida_dataset/groundtruth 2
+```
+
+The outputs of your run will be logged with wandb.
+
 </details>
 
 # Bibtex
+
 If you find this work useful, please consider citing:
 
 ```

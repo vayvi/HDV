@@ -24,9 +24,11 @@ from util.box_ops import (
     box_xyxy_to_cxcywh_abs,
     get_box_from_arcs,
 )
+from util.primitives import PRIM_INFO
+from util.logger import pprint
 import numpy as np
 
-PRIMITIVES = ["lines", "circles", "arcs"]
+PRIMITIVES = list(PRIM_INFO.keys())
 
 
 def get_default_bbox(circles):
@@ -86,13 +88,34 @@ def get_out_of_bounds_mask(cropped_primitive, h, w):
     return keep
 
 
+def prim_crop(target, prim_type, h, w):
+    prim = target[f"{prim_type}s"] if prim_type in target and len(target[f"{prim_type}s"]) else None
+
+    if prim is not None:
+        x_borders_prims, y_borders_prims = (
+            prim[:, PRIM_INFO[prim_type]["x_border_idx"]],
+            prim[:, PRIM_INFO[prim_type]["y_border_idx"]],
+        )
+        min_prim_x, max_prim_x = x_borders_prims.min(), x_borders_prims.max()
+        min_prim_y, max_prim_y = y_borders_prims.min(), y_borders_prims.max()
+    else:
+        min_prim_x, min_prim_y = w, h
+        max_prim_x, max_prim_y = torch.tensor(0), torch.tensor(0)
+
+    return min_prim_x, min_prim_y, max_prim_x, max_prim_y
+
+
 def instance_aware_crop(image, target):
     h, w = target["size"]
 
-    if "circles" in target:
+    circles = target["circles"] if "circles" in target and len(target["circles"]) else None
+    lines = target["lines"] if "lines" in target and len(target["lines"]) else None
+    arcs = target["arcs"] if "arcs" in target and target["arcs"].shape[0] > 0 else None
+
+    if circles is not None:
         x_borders_circles, y_borders_circles = (
-            target["circles"][:, [0, 2]],
-            target["circles"][:, [1, 3]],
+            circles[:, [0, 2]],
+            circles[:, [1, 3]],
         )
         min_circle_x, max_circle_x = x_borders_circles.min(), x_borders_circles.max()
         min_circle_y, max_circle_y = y_borders_circles.min(), y_borders_circles.max()
@@ -100,10 +123,10 @@ def instance_aware_crop(image, target):
         min_circle_x, min_circle_y = w, h
         max_circle_x, max_circle_y = torch.tensor(0), torch.tensor(0)
 
-    if "lines" in target:
+    if lines is not None:
         x_borders_lines, y_borders_lines = (
-            target["lines"][:, [0, 2]],
-            target["lines"][:, [1, 3]],
+            lines[:, [0, 2]],
+            lines[:, [1, 3]],
         )
         min_line_x, max_line_x = x_borders_lines.min(), x_borders_lines.max()
         min_line_y, max_line_y = y_borders_lines.min(), y_borders_lines.max()
@@ -111,9 +134,9 @@ def instance_aware_crop(image, target):
         min_line_x, min_line_y = w, h
         max_line_x, max_line_y = torch.tensor(0), torch.tensor(0)
 
-    if ("arcs" in target) and (target["arcs"].shape[0] > 0):
-        borders_x = target["arcs"][:, [0, 2, 4]]
-        borders_y = target["arcs"][:, [1, 3, 5]]
+    if arcs is not None:
+        borders_x = arcs[:, [0, 2, 4]]
+        borders_y = arcs[:, [1, 3, 5]]
         min_arc_x, min_arc_y = borders_x.min(), borders_y.min()
         max_arc_x, max_arc_y = borders_x.max(), borders_y.max()
     else:
@@ -137,12 +160,18 @@ def instance_aware_crop(image, target):
         dim=0,
     ).values
 
+    # ================== Factorisation ==================
+    # min_x, min_y, max_x, max_y = zip(*(prim_crop(target, prim_type, h, w) for prim_type in PRIMITIVES))
+    # min_border_x = torch.min(torch.stack(min_x), dim=0).values
+    # min_border_y = torch.min(torch.stack(min_y), dim=0).values
+    # max_border_x = torch.max(torch.stack(max_x), dim=0).values
+    # max_border_y = torch.max(torch.stack(max_y), dim=0).values
+    # ===================================================
+
     random_center_offset = random.randint(0, 30)
 
-    i, j = int(max(min_border_y.item() - random_center_offset, 0)), int(
-        max(min_border_x.item() - random_center_offset, 0)
-    )
-
+    i = int(max(min_border_y.item() - random_center_offset, 0))
+    j = int(max(min_border_x.item() - random_center_offset, 0))
     h = int(min(max_border_y.item() - i + random.randint(0, 30), h - i))
     w = int(min(max_border_x.item() - j + random.randint(0, 30), w - j))
     region = (i, j, h, w)
@@ -150,6 +179,13 @@ def instance_aware_crop(image, target):
     cropped_image = F.crop(image, *region)
     target = target.copy()
     target["size"] = torch.tensor([h, w])
+
+    # ================== Factorisation ==================
+    # for prim_type in PRIMITIVES:
+    #     tensor = [j, i, j, i, j, i] if prim_type == "arc" else [j, i, j, i]
+    #     target[f"{prim_type}s"] = target[f"{prim_type}s"] - torch.as_tensor(tensor, dtype=torch.float32)
+    # ===================================================
+
     target["circles"] = target["circles"] - torch.as_tensor(
         [j, i, j, i], dtype=torch.float32
     )
@@ -226,8 +262,8 @@ def vflip(image, target):
 
 
 def ccw_rotation(image, target):
-    rotateded_image = F.rotate(image, 90, expand=True)
-    w, h = rotateded_image.size
+    rotated_image = F.rotate(image, 90, expand=True)
+    w, h = rotated_image.size
     # print("inside ccw rotation")
     target = target.copy()
 
@@ -279,13 +315,13 @@ def ccw_rotation(image, target):
         ) + torch.as_tensor([0, h, 0, h, 0, h])
         target["arcs"] = get_default_arc(arcs)
 
-    # target["boxes6d"] = torch.cat([target[primitive] for primitive in PRIMITIVES])
-    return rotateded_image, target
+    # target["boxes6d"] = torch.cat([target[f"{primitive}s"] for primitive in PRIMITIVES])
+    return rotated_image, target
 
 
 def cw_rotation(image, target):
-    rotateded_image = F.rotate(image, -90, expand=True)
-    w, h = rotateded_image.size
+    rotated_image = F.rotate(image, -90, expand=True)
+    w, h = rotated_image.size
     target = target.copy()
     target["size"] = torch.tensor([h, w])
 
@@ -338,9 +374,9 @@ def cw_rotation(image, target):
         ) + torch.as_tensor([w, 0, w, 0, w, 0])
         target["arcs"] = get_default_arc(arcs)
 
-    # target["boxes6d"] = torch.cat([target[primitive] for primitive in PRIMITIVES])
+    # target["boxes6d"] = torch.cat([target[f"{primitive}s"] for primitive in PRIMITIVES])
 
-    return rotateded_image, target
+    return rotated_image, target
 
 
 def resize(image, target, size, max_size=None):
@@ -409,7 +445,7 @@ def resize(image, target, size, max_size=None):
 
     h, w = size
     target["size"] = torch.tensor([h, w])
-    # target["boxes6d"] = torch.cat([target[primitive] for primitive in PRIMITIVES])
+    # target["boxes6d"] = torch.cat([target[f"{primitive}s"] for primitive in PRIMITIVES])
     return rescaled_image, target
 
 
@@ -762,7 +798,7 @@ class Normalize(object):
 
         target["parameters"] = torch.cat(all_params)
         target["boxes"] = torch.cat(
-            [target[f"{primitive}_boxes"] for primitive in PRIMITIVES]
+            [target[f"{primitive}s_boxes"] for primitive in PRIMITIVES]
         )
 
         return image, target

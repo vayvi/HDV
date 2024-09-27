@@ -21,46 +21,7 @@ from pycocotools import mask as maskUtils
 from matplotlib import transforms
 import matplotlib.cm as cm
 from .box_ops import arc_cxcywh2_to_xy3
-
-
-def find_circle_center(p1, p2, p3):
-    """Circle center from 3 points"""
-    # print(p1, p2, p3)
-    temp = p2[0] * p2[0] + p2[1] * p2[1]
-    bc = (p1[0] * p1[0] + p1[1] * p1[1] - temp) / 2
-    cd = (temp - p3[0] * p3[0] - p3[1] * p3[1]) / 2
-    det = (p1[0] - p2[0]) * (p2[1] - p3[1]) - (p2[0] - p3[0]) * (p1[1] - p2[1])
-    if abs(det) < 1.0e-10:
-        return (None, None)
-
-    cx = (bc * (p2[1] - p3[1]) - cd * (p1[1] - p2[1])) / det
-    cy = ((p1[0] - p2[0]) * cd - (p2[0] - p3[0]) * bc) / det
-    return np.array([cx, cy])
-
-
-def get_angles_from_arc_points(p0, p_mid, p1):
-    arc_center = find_circle_center(p0, p_mid, p1)
-    arc_center = (arc_center[0], arc_center[1])
-    start_angle = np.arctan2(p0[1] - arc_center[1], p0[0] - arc_center[0])
-    end_angle = np.arctan2(p1[1] - arc_center[1], p1[0] - arc_center[0])
-    mid_angle = np.arctan2(p_mid[1] - arc_center[1], p_mid[0] - arc_center[0])
-    return start_angle, mid_angle, end_angle, arc_center
-
-
-def get_arc_plot_params(arc):
-    start_angle, mid_angle, end_angle, arc_center = get_angles_from_arc_points(
-        arc[:2],
-        arc[4:],
-        arc[2:4],
-    )
-    diameter = 2 * np.linalg.norm(arc[:2] - arc_center)
-    to_deg = lambda x: (x * 180 / np.pi) % 360
-    start_angle, mid_angle, end_angle = (
-        to_deg(start_angle),
-        to_deg(mid_angle),
-        to_deg(end_angle),
-    )
-    return start_angle, mid_angle, end_angle, arc_center, diameter
+from .primitives import get_arc_plot_params
 
 
 def renorm(
@@ -72,7 +33,7 @@ def renorm(
         "img.dim() should be 3 or 4 but %d" % img.dim()
     )
     if img.dim() == 3:
-        assert img.size(0) == 3, 'img.size(0) shoule be 3 but "%d". (%s)' % (
+        assert img.size(0) == 3, 'img.size(0) should be 3 but "%d". (%s)' % (
             img.size(0),
             str(img.size()),
         )
@@ -82,7 +43,7 @@ def renorm(
         img_res = img_perm * std + mean
         return img_res.permute(2, 0, 1)
     else:  # img.dim() == 4
-        assert img.size(1) == 3, 'img.size(1) shoule be 3 but "%d". (%s)' % (
+        assert img.size(1) == 3, 'img.size(1) should be 3 but "%d". (%s)' % (
             img.size(1),
             str(img.size()),
         )
@@ -170,22 +131,16 @@ class COCOVisualizer:
 
         if savedir is not None:
             if img_name is None:
+                date = str(datetime.datetime.now()).replace(" ", "-")
+                img_id = int(tgt["image_id"])
                 if caption is None:
-                    savename = "{}/{}-{}.png".format(
-                        savedir,
-                        int(tgt["image_id"]),
-                        str(datetime.datetime.now()).replace(" ", "-"),
-                    )
+                    savename = f"{savedir}/{img_id}-{date}.png"
                 else:
-                    savename = "{}/{}-{}-{}.png".format(
-                        savedir,
-                        caption,
-                        int(tgt["image_id"]),
-                        str(datetime.datetime.now()).replace(" ", "-"),
-                    )
+                    savename = f"{savedir}/{caption}-{img_id}-{date}.png"
             else:
                 savename = f"{savedir}/{img_name}"
-            print("savename: {}".format(savename))
+            print(f"savename: {savename}")
+
             os.makedirs(os.path.dirname(savename), exist_ok=True)
             plt.axis("off")
             plt.savefig(savename, bbox_inches="tight", pad_inches=0)
@@ -252,7 +207,7 @@ class COCOVisualizer:
                 if fixed_colors:
                     c = "royalblue"
 
-                circle = param[4:8]
+                circle = param[4:8] # center, radius, center norm, radius norm
                 unnormcircle = circle * torch.Tensor([W, H, W, H])
                 unnormcircle[:2] -= unnormcircle[2:] / 2
                 [bbox_x, bbox_y, bbox_w, bbox_h] = unnormcircle.tolist()
@@ -264,9 +219,9 @@ class COCOVisualizer:
             elif ("arc" in _string) and ("arc" in primitives_to_show):
                 if fixed_colors:
                     c = "firebrick"
-                arc = param[8:14]
+                arc = param[8:14] # start point, end point, mid-point
                 unnorm_arc = arc * torch.Tensor([W, H, W, H, W, H])
-                arc = arc_cxcywh2_to_xy3(unnorm_arc)
+                arc = arc_cxcywh2_to_xy3(unnorm_arc) # start point, end point, mid-point
                 arc = np.array(arc.tolist())
                 theta1, theta_mid, theta2, c_xy, diameter = get_arc_plot_params(arc)
                 ax.scatter(arc[0], arc[1], s=7 * linewidth**2, c=c, marker="^")

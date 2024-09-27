@@ -15,6 +15,7 @@ from synthetic_module.synthetic import SyntheticDiagram
 from synthetic_module import DEFAULT_WIDTH, DEFAULT_HEIGHT, SYNTHETIC_RESRC_PATH
 from torchvision.datasets.vision import VisionDataset
 from util.box_ops import box_xyxy_to_cxcywh_abs, get_box_from_arcs
+from util.logger import SLogger, pprint
 
 
 class CocoDetectionOnTheFly(VisionDataset):
@@ -147,7 +148,6 @@ class ConvertCocoPolysToMask(object):
         target["boxes"] = torch.cat(
             [target[f"{primitive}_boxes"] for primitive in primitives]
         )
-
         target["image_id"] = image_id
         target["iscrowd"] = torch.zeros(len(anno))
         target["area"] = torch.cat(
@@ -171,15 +171,16 @@ def make_coco_transforms(image_set, args):
         ]
     )
 
-    scales = [512, 544, 576, 608, 640, 672, 680, 690, 704, 736, 768, 788, 800]
+    scales = args.data_aug_scales or [512, 544, 576, 608, 640, 672, 680, 690, 704, 736, 768, 788, 800]
     test_size = 1100
-    max = 1333
+    # maximal size of the longer image side (reduce to prevent CUDA out of memory)
+    max_size = args.data_aug_max_size or 1333
 
     if args.eval:
         return T.Compose(
             [
                 T.InstanceAwareCrop(),
-                T.RandomResize([test_size], max_size=max),
+                T.RandomResize([test_size], max_size=max_size),
                 normalize,
             ]
         )
@@ -197,14 +198,14 @@ def make_coco_transforms(image_set, args):
                     ),
                     T.RandomResize([500, 600]),
                     T.InstanceAwareCrop(),
-                    T.RandomResize(scales, max_size=max),
+                    T.RandomResize(scales, max_size=max_size),
                     normalize,
                 ]
             )
         if image_set == "val":
             return T.Compose(
                 [
-                    T.RandomResize([test_size], max_size=max),
+                    T.RandomResize([test_size], max_size=max_size),
                     normalize,
                 ]
             )
@@ -212,50 +213,46 @@ def make_coco_transforms(image_set, args):
         raise ValueError(f"unknown {image_set}")
 
 
-def build(image_set, args):
+def build(image_set, args, mode="primitives"):
     root = Path(args.coco_path)
     if not args.on_the_fly:
         assert root.exists(), f"provided COCO path {root} does not exist"
-    mode = "primitives" if "synthetic" in str(root) else "instances"
-    print("##################", str(root))
+
     if args.on_the_fly and ("train" in image_set):
         dataset = CocoDetectionOnTheFly(
             transforms=make_coco_transforms(image_set, args),
             args=args,
             num_samples=args.num_samples,
         )
-
         return dataset
-    elif args.on_the_fly_val and ("val" in image_set):
+    elif hasattr(args, 'on_the_fly_val') and args.on_the_fly_val and ("val" in image_set):
         dataset = CocoDetectionOnTheFly(
             transforms=make_coco_transforms(image_set, args),
             args=args,
             num_samples=args.num_samples // 5,
         )
-
         return dataset
-    if "synthetic" in str(root):
 
-        PATHS = {
-            "train": (root / "train", root / "annotations" / f"{mode}_train.json"),
-            "val": (root / "val", root / "annotations" / f"{mode}_val.json"),
-        }
-    else:
-        PATHS = {
-            # "train": (root / "train", root / "annotations" / f"{mode}_train.json"),
-            "val": (root / "val", root / "annotations" / f"{mode}_val.json"),
-        }
-
-    if image_set == "test_train":
-        img_folder, ann_file = PATHS["train"]
-    else:
-        img_folder, ann_file = PATHS[image_set]
-    print("#######", img_folder, "~####################")
-    print("#######", ann_file, "~###########")
+    # PATHS = {
+    #     "train": (root / "train", root / "annotations" / f"{mode}_train.json"),
+    #     "val": (root / "val", root / "annotations" / f"{mode}_val.json"),
+    # }
+    #
+    # img_folder, ann_file = PATHS["train" if "train" in image_set else "val"]
+    #
+    # print("#######", img_folder, "~####################")
+    # print("#######", ann_file, "~###########")
+    #
+    # dataset = CocoDetection(
+    #     img_folder,
+    #     ann_file,
+    #     transforms=make_coco_transforms(image_set, args),
+    #     args=args,
+    # )
 
     dataset = CocoDetection(
-        img_folder,
-        ann_file,
+        root / image_set,
+        root / "annotations" / f"{mode}_{image_set}.json",
         transforms=make_coco_transforms(image_set, args),
         args=args,
     )

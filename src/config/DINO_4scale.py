@@ -1,9 +1,10 @@
-_base_ = ["coco_transformer.py"]
-
 num_classes = 3
+num_samples = 8000
+num_queries = 900
+query_dim = 4
 
-lr = 0.0001
 param_dict_type = "default"
+lr = 0.0001
 lr_backbone = 1e-05
 lr_backbone_names = ["backbone.0"]
 lr_linear_proj_names = ["reference_points", "sampling_offsets"]
@@ -19,7 +20,6 @@ onecyclelr = False
 multi_step_lr = False
 lr_drop_list = [33]
 
-
 modelname = "dino"
 frozen_weights = None
 backbone = "resnet50"
@@ -27,7 +27,6 @@ use_checkpoint = False
 
 on_the_fly = True
 on_the_fly_val = True
-num_samples = 8000
 
 dilation = False
 position_embedding = "sine"
@@ -43,9 +42,10 @@ dim_feedforward = 2048
 hidden_dim = 256
 dropout = 0.0
 nheads = 8
-num_queries = 900
-query_dim = 4
 
+# positive_hw = False
+# specialize = False
+# num_patterns = 0
 
 pdetr3_bbox_embed_diff_each_layer = False
 pdetr3_refHW = -1
@@ -106,10 +106,9 @@ dec_pred_class_embed_share = True
 # for dn
 use_dn = True
 dn_number = 100
-# dn_box_noise_scale = 0.4
-dn_box_noise_scale = 0.1
-# dn_label_noise_ratio = 0 # no label flipping
-dn_label_noise_ratio = 0.5
+dn_box_noise_scale = 0.1 # 0.4
+dn_label_noise_ratio = 0.5 # 0 # no label flipping
+# dn_labelbook_size = 2
 
 embed_init_tgt = True
 match_unstable_error = True
@@ -124,3 +123,10 @@ num_parameters = 14
 boxes_only = False
 use_wandb = False
 min_permut_loss = True
+
+# Data augmentations
+data_aug_scales = [480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800]
+data_aug_max_size = 1333
+data_aug_scales2_resize = [400, 500, 600]
+data_aug_scales2_crop = [384, 600]
+data_aug_scale_overlap = None
