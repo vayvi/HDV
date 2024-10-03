@@ -57,6 +57,7 @@ parser.add_argument(
 
 prim_list = list(PRIM_INFO.keys())
 
+
 def preprocess_img(img_path):
     image = Image.open(img_path).convert("RGB")
     with torch.no_grad():
@@ -67,6 +68,7 @@ def preprocess_img(img_path):
         ])
         tr_image, _ = transform(image, None)
     return image, tr_image
+
 
 def scale_positions(prims, heatmap_scale=(128, 128), im_shape=None):
     if len(prims) == 0:
@@ -151,6 +153,7 @@ def postprocess_preds(model_preds, img_size):
         pred_dict = process_preds(pred_dict, prim_type, img_size)
 
     return pred_dict
+
 
 def save_pred_as_img(img_name, img, preds: dict, pred_dir, w_box=False, w_text=False, w_img=True, dpi=300, l_width=1):
     id_to_prim = {value['id']: key for key, value in PRIM_INFO.items()}

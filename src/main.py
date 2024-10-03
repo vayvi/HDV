@@ -1,26 +1,29 @@
 # ------------------------------------------------------------------------
 # Copyright (c) 2022 IDEA. All Rights Reserved.
 # ------------------------------------------------------------------------
+
+import os
+import sys
 import argparse
 import datetime
 import glob
 import json
 import random
-import re
 import time
 from pathlib import Path
-import os, sys
-import numpy as np
-
 import torch
 from torch.utils.data import DataLoader, DistributedSampler
+import numpy as np
+
+from . import build_model_main
+
 from util.get_param_dicts import get_param_dict
 from util.logger import setup_logger, fprint
 from util.slconfig import DictAction, SLConfig
 from util.utils import ModelEma, BestMetricHolder
 import util.misc as utils
 
-from datasets import build_dataset, get_coco_api_from_dataset
+from datasets.dataset import build_dataset, get_coco_api_from_dataset
 from engine import evaluate, train_one_epoch, evaluate_ap
 
 
@@ -90,16 +93,6 @@ def get_args_parser():
     parser.add_argument("--amp", action="store_true", help="Train with mixed precision")
 
     return parser
-
-
-def build_model_main(args):
-    # we use register to maintain models from catdet6 on.
-    from models.registry import MODULE_BUILD_FUNCS
-
-    assert args.modelname in MODULE_BUILD_FUNCS._module_dict
-    build_func = MODULE_BUILD_FUNCS.get(args.modelname)
-    model, criterion, postprocessors = build_func(args)
-    return model, criterion, postprocessors
 
 
 def main(args):

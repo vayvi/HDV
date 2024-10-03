@@ -6,7 +6,7 @@ modified based on https://github.com/facebookresearch/detr/blob/master/datasets/
 """
 
 import random
-import matplotlib.pyplot as plt
+import numpy as np
 import PIL
 import torch
 import torchvision.transforms as T
@@ -17,6 +17,7 @@ from typing import Tuple, List, Optional
 from PIL import Image
 from torch import Tensor
 import math
+
 from util.box_ops import (
     arc_xy3_to_cxcywh2,
     arc_cxcywh2_to_xy3,
@@ -26,7 +27,6 @@ from util.box_ops import (
 )
 from util.primitives import PRIM_INFO
 from util.logger import pprint
-import numpy as np
 
 PRIMITIVES = list(PRIM_INFO.keys())
 
