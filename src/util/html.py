@@ -20,6 +20,7 @@ parser.add_argument(
     help="Name of the output HTML file",
 )
 
+
 def check_output_file(path):
     if not os.path.exists(path):
         os.makedirs(os.path.dirname(path), exist_ok=True)

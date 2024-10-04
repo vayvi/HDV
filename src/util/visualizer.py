@@ -7,19 +7,13 @@
 Modified from COCO evaluator
 """
 
-import os, sys
-from textwrap import wrap
+import os
 import torch
 import numpy as np
-import cv2
 import datetime
 
 import matplotlib.pyplot as plt
-from matplotlib.collections import PatchCollection
 from matplotlib.patches import Polygon, Circle, Arc
-from pycocotools import mask as maskUtils
-from matplotlib import transforms
-import matplotlib.cm as cm
 from .box_ops import arc_cxcywh2_to_xy3
 from .primitives import get_arc_plot_params
 

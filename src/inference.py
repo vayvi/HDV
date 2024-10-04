@@ -9,19 +9,18 @@ from pathlib import Path
 from PIL import Image
 
 import xml.etree.ElementTree as ET
+from svg.path import parse_path
+from svg.path.path import Line, Arc
 
-from util.logger import SLogger
-from util import MODEL_DIR, DEFAULT_CONF, DATA_DIR
-from util.slconfig import SLConfig
-from util.visualizer import COCOVisualizer
-from util.primitives import PRIM_INFO, get_arc_param, write_svg_dwg, line_to_xy, circle_to_xy, arc_to_xy, remove_duplicate_lines, \
+from .util.logger import SLogger
+from .util import MODEL_DIR, DEFAULT_CONF, DATA_DIR
+from .util.slconfig import SLConfig
+from .util.visualizer import COCOVisualizer
+from .util.primitives import PRIM_INFO, get_arc_param, write_svg_dwg, line_to_xy, circle_to_xy, arc_to_xy, remove_duplicate_lines, \
     remove_small_lines, remove_duplicate_circles, remove_duplicate_arcs, remove_arcs_on_top_of_circles, \
     remove_arcs_on_top_of_lines
 
-import datasets.transforms as T
-
-from svg.path import parse_path
-from svg.path.path import Line, Arc
+from .datasets import transforms as T
 
 
 parser = argparse.ArgumentParser()

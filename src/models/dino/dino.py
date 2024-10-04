@@ -21,14 +21,13 @@ import torch.nn.functional as F
 from torch import nn
 from torchvision.ops.boxes import nms
 
-from util import box_ops
-from util.logger import SLogger
-from util.misc import (
+from ...util import box_ops
+from ...util.logger import SLogger
+from ...util.misc import (
     NestedTensor,
     nested_tensor_from_tensor_list,
     accuracy,
     get_world_size,
-    interpolate,
     is_dist_avail_and_initialized,
     inverse_sigmoid,
     normalize_parameter,
@@ -42,7 +41,6 @@ from .utils import sigmoid_focal_loss, MLP
 
 from ..registry import MODULE_BUILD_FUNCS
 from .dn_components import prepare_for_cdn, dn_post_process
-import numpy as np
 
 
 class DINO(nn.Module):
@@ -954,7 +952,7 @@ class PostProcess(nn.Module):
         return results
 
 
-@MODULE_BUILD_FUNCS.registe_with_name(module_name="dino")
+@MODULE_BUILD_FUNCS.register_with_name(module_name="dino")
 def build_dino(args, logger=None):
     # the `num_classes` naming here is somewhat misleading.
     # it indeed corresponds to `max_obj_id + 1`, where max_obj_id

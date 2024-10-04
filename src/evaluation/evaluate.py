@@ -9,8 +9,8 @@ import sys
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-from util import ROOT_DIR
-from util.logger import fprint
+from ..util import ROOT_DIR
+from ..util.logger import fprint
 
 parser = argparse.ArgumentParser()
 parser.add_argument(

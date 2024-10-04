@@ -17,10 +17,7 @@ from typing import Optional
 
 import torch
 from torch import nn, Tensor
-from util.misc import (
-    inverse_sigmoid,
-    inverse_xy_sigmoid_hw_tanh,
-    xy_sigmoid_hw_tanh,
+from ...util.misc import (
     normalize_parameter,
     unnormalize_parameter,
 )

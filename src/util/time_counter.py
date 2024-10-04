@@ -1,6 +1,7 @@
 import json
 import time
 
+
 class TimeCounter:
     def __init__(self) -> None:
         pass

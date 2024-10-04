@@ -17,11 +17,11 @@ import numpy as np
 
 from . import build_model_main
 
-from util.get_param_dicts import get_param_dict
-from util.logger import setup_logger, fprint
-from util.slconfig import DictAction, SLConfig
-from util.utils import ModelEma, BestMetricHolder
-import util.misc as utils
+from .util.get_param_dicts import get_param_dict
+from .util.logger import setup_logger, fprint
+from .util.slconfig import DictAction, SLConfig
+from .util.utils import ModelEma, BestMetricHolder
+from .util.misc import init_distributed_mode, get_sha, get_rank, collate_fn, clean_state_dict, is_main_process, save_on_master
 
 from datasets.dataset import build_dataset, get_coco_api_from_dataset
 from engine import evaluate, train_one_epoch, evaluate_ap
@@ -96,7 +96,7 @@ def get_args_parser():
 
 
 def main(args):
-    utils.init_distributed_mode(args)
+    init_distributed_mode(args)
     time.sleep(args.rank * 0.02)
 
     # load cfg file and update the args
@@ -147,7 +147,7 @@ def main(args):
         color=False,
         name="detr",
     )
-    logger.info(f"git:\n {utils.get_sha()}\n")
+    logger.info(f"git:\n {get_sha()}\n")
     logger.info(f"Command: {' '.join(sys.argv)}")
     if args.rank == 0:
         with open(model_dir / "config_args_all.json", "w") as f:
@@ -165,7 +165,7 @@ def main(args):
     device = torch.device(args.device)
 
     # fix the seed for reproducibility
-    seed = args.seed + utils.get_rank()
+    seed = args.seed + get_rank()
     torch.manual_seed(seed)
     np.random.seed(seed)
     random.seed(seed)
@@ -220,7 +220,7 @@ def main(args):
     data_loader_train = DataLoader(
         dataset_train,
         batch_sampler=batch_sampler_train,
-        collate_fn=utils.collate_fn,
+        collate_fn=collate_fn,
         num_workers=args.num_workers,
     )
     data_loader_val = DataLoader(
@@ -228,7 +228,7 @@ def main(args):
         1,
         sampler=sampler_val,
         drop_last=False,
-        collate_fn=utils.collate_fn,
+        collate_fn=collate_fn,
         num_workers=args.num_workers,
     )
     base_ds = get_coco_api_from_dataset(dataset_val)
@@ -313,7 +313,7 @@ def main(args):
         if args.use_ema:
             if "ema_model" in checkpoint:
                 ema_m.module.load_state_dict(
-                    utils.clean_state_dict(checkpoint["ema_model"])
+                    clean_state_dict(checkpoint["ema_model"])
                 )
             else:
                 del ema_m
@@ -348,7 +348,7 @@ def main(args):
         _tmp_st = OrderedDict(
             {
                 k: v
-                for k, v in utils.clean_state_dict(checkpoint).items()
+                for k, v in clean_state_dict(checkpoint).items()
                 if check_keep(k, _ignorekeywordlist)
             }
         
@@ -360,7 +360,7 @@ def main(args):
         if args.use_ema:
             if "ema_model" in checkpoint:
                 ema_m.module.load_state_dict(
-                    utils.clean_state_dict(checkpoint["ema_model"])
+                    clean_state_dict(checkpoint["ema_model"])
                 )
             else:
                 del ema_m
@@ -381,7 +381,7 @@ def main(args):
             args=args,
         )
         log_stats = {**{f"test_{k}": v for k, v in test_stats.items()}}
-        if model_dir and utils.is_main_process():
+        if model_dir and is_main_process():
             with (model_dir / "log.txt").open("a") as f:
                 f.write(json.dumps(log_stats) + "\n")
 
@@ -445,7 +445,7 @@ def main(args):
                     weights.update({
                         "ema_model": ema_m.module.state_dict(),
                     })
-                utils.save_on_master(weights, checkpoint_path)
+                save_on_master(weights, checkpoint_path)
 
         # eval
         _ = evaluate_ap(model, data_loader_val, device, postprocessors=postprocessors, run=run, args=args)
@@ -497,7 +497,7 @@ def main(args):
             _isbest = best_map_holder.update(map_ema, epoch, is_ema=True)
             if _isbest:
                 checkpoint_path = model_dir / "checkpoint_best_ema.pth"
-                utils.save_on_master(
+                save_on_master(
                     {
                         "model": ema_m.module.state_dict(),
                         "optimizer": optimizer.state_dict(),
@@ -520,7 +520,7 @@ def main(args):
         epoch_time_str = str(datetime.timedelta(seconds=int(epoch_time)))
         log_stats["epoch_time"] = epoch_time_str
 
-        if model_dir and utils.is_main_process():
+        if model_dir and is_main_process():
             with info_path.open("a") as f:
                 f.write(json.dumps(log_stats) + "\n")
 

@@ -12,8 +12,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from timm.models.layers import trunc_normal_, DropPath
 
-from util.misc import NestedTensor
-# from timm.models.registry import register_model
+from ...util.misc import NestedTensor
+
 
 class Block(nn.Module):
     r""" ConvNeXt Block. There are two equivalent implementations:

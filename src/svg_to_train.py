@@ -5,13 +5,12 @@ import argparse
 from xml.dom import minidom
 
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image
 
 from datasets.coco import CocoDetection
 from inference import save_pred_as_img
-from util.visualizer import COCOVisualizer
-from util import DATA_DIR
-from util.primitives import (
+from .util import DATA_DIR
+from .util.primitives import (
     get_angles_from_arc_points,
     get_arc_param_with_tr,
     get_arc_param_from_inkscape,
@@ -21,7 +20,7 @@ from util.primitives import (
     BadPath,
     PRIM_INFO
 )
-from util.logger import SLogger
+from .util.logger import SLogger
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--data_set", default="eida_dataset", type=str, help="Name of the folder containing SVG and images to be used as ground truth")

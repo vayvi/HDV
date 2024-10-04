@@ -12,8 +12,9 @@ from pathlib import Path
 from abc import ABCMeta, abstractmethod
 
 # ===========================
-# Rigister handler
+# Register handler
 # ===========================
+
 
 class BaseFileHandler(metaclass=ABCMeta):
 

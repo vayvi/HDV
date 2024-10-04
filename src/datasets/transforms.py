@@ -18,15 +18,13 @@ from PIL import Image
 from torch import Tensor
 import math
 
-from util.box_ops import (
+from ..util.box_ops import (
     arc_xy3_to_cxcywh2,
-    arc_cxcywh2_to_xy3,
     box_xyxy_to_cxcywh,
     box_xyxy_to_cxcywh_abs,
     get_box_from_arcs,
 )
-from util.primitives import PRIM_INFO
-from util.logger import pprint
+from ..util.primitives import PRIM_INFO
 
 PRIMITIVES = list(PRIM_INFO.keys())
 

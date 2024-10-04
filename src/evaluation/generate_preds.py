@@ -2,15 +2,13 @@ import os, sys
 import torch, json
 import numpy as np
 
-sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
-
-from util import MODEL_DIR, DATA_DIR
-from util import ROOT_DIR
-from util.primitives import PRIM_INFO
-from util.slconfig import SLConfig
-from util.logger import fprint
-from models.registry import MODULE_BUILD_FUNCS
-import datasets.transforms as T
+from ..util import MODEL_DIR, DATA_DIR
+from ..util import ROOT_DIR
+from ..util.primitives import PRIM_INFO
+from ..util.slconfig import SLConfig
+from ..util.logger import fprint
+from ..models.registry import MODULE_BUILD_FUNCS
+from ..datasets import transforms as T
 
 from PIL import Image
 import glob

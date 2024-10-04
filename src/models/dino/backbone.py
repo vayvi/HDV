@@ -15,7 +15,6 @@
 """
 Backbone modules.
 """
-from collections import OrderedDict
 import os
 
 import torch
@@ -26,12 +25,11 @@ from torchvision.models._utils import IntermediateLayerGetter
 from typing import Dict, List
 
 
-from util.misc import NestedTensor, clean_state_dict, is_main_process
+from ...util.misc import NestedTensor, clean_state_dict, is_main_process
 
 from .position_encoding import build_position_encoding
 from .convnext import build_convnext
 from .swin_transformer import build_swin_transformer
-
 
 
 class FrozenBatchNorm2d(torch.nn.Module):

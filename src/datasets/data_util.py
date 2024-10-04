@@ -6,7 +6,7 @@ import datetime
 
 import torch
 
-from util.slconfig import SLConfig
+from ..util.slconfig import SLConfig
 
 class Error(OSError):
     pass

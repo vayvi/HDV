@@ -5,9 +5,7 @@ Misc functions, including distributed helpers.
 Mostly copy-paste from torchvision references.
 """
 import os
-import random
 import subprocess
-import time
 from collections import OrderedDict, defaultdict, deque
 import datetime
 import pickle

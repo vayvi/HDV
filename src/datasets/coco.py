@@ -6,16 +6,15 @@ from pathlib import Path
 
 import torch
 import torch.utils.data
-import torchvision
+from torchvision.datasets.vision import VisionDataset
+from torchvision.datasets import CocoDetection as Coco
 import numpy as np
-from . import transforms as T
-
 
 from synthetic_module.synthetic import SyntheticDiagram
 from synthetic_module import DEFAULT_WIDTH, DEFAULT_HEIGHT, SYNTHETIC_RESRC_PATH
-from torchvision.datasets.vision import VisionDataset
-from util.box_ops import box_xyxy_to_cxcywh_abs, get_box_from_arcs
-from util.logger import SLogger, pprint
+
+from . import transforms as T
+from ..util.box_ops import box_xyxy_to_cxcywh_abs, get_box_from_arcs
 
 
 class CocoDetectionOnTheFly(VisionDataset):
@@ -64,7 +63,7 @@ class CocoDetectionOnTheFly(VisionDataset):
         return self.num_samples
 
 
-class CocoDetection(torchvision.datasets.CocoDetection):
+class CocoDetection(Coco):
     def __init__(self, img_folder, ann_file, transforms, args):
         super(CocoDetection, self).__init__(img_folder, ann_file)
         self._transforms = transforms

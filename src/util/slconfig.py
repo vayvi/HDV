@@ -1,7 +1,7 @@
 # ==========================================================
 # Modified from mmcv
 # ==========================================================
-import os, sys
+import sys
 import os.path as osp
 import ast
 import tempfile

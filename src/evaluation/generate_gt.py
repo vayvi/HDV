@@ -1,19 +1,11 @@
 import os
-import sys
-from pathlib import Path
-import matplotlib.pyplot as plt
-from matplotlib.patches import Ellipse
 import numpy as np
 import json
-from glob import glob
 import argparse
 from PIL import Image
 
-sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
-
-from util import DATA_DIR
-from util.logger import fprint
-from util.primitives import PRIM_INFO
+from ..util import DATA_DIR
+from ..util.primitives import PRIM_INFO
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--data_root", type=str, default="eida_dataset", help="root directory of the data")

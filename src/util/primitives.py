@@ -4,7 +4,7 @@ import numpy as np
 
 import matplotlib.pyplot as plt
 from svg.path import parse_path
-from svg.path.path import Line, Move, Arc
+from svg.path.path import Line, Arc
 
 
 PRIM_INFO = {

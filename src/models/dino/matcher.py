@@ -15,11 +15,10 @@
 # ------------------------------------------------------------------------
 
 
-import torch, os
+import torch
 from torch import nn
 from scipy.optimize import linear_sum_assignment
-import numpy as np
-from util.box_ops import box_cxcywh_to_xyxy, generalized_box_iou, param_cxcywh_to_xyxy
+from ...util.box_ops import box_cxcywh_to_xyxy, generalized_box_iou, param_cxcywh_to_xyxy
 
 
 class HungarianMatcher(nn.Module):

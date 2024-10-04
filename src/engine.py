@@ -4,19 +4,17 @@ Train and eval functions used in main.py
 """
 
 import math
-import re
 import sys
 from typing import Iterable
 import torch
 import numpy as np
 
-from evaluation.generate_preds import output_class, scale_positions as pred_scale_positions
-from evaluation.generate_gt import process_gt, scale_positions as gt_scale_positions
-from evaluation.evaluate import get_prim_score, ap
-from util.primitives import PRIMITIVES
-from util.utils import slprint, to_device
-from util.box_ops import arc_cxcywh2_to_xy3, box_cxcywh_to_xyxy
-import util.misc as utils
+from .evaluation.generate_preds import output_class, scale_positions as pred_scale_positions
+from .evaluation.generate_gt import process_gt
+from .evaluation.evaluate import get_prim_score, ap
+from .util.utils import to_device
+from .util.box_ops import arc_cxcywh2_to_xy3, box_cxcywh_to_xyxy
+from .util.misc import SmoothedValue, MetricLogger, reduce_dict, get_rank
 
 
 def log_stat(stat_name):
@@ -51,11 +49,11 @@ def train_one_epoch(
 
     model.train()
     criterion.train()
-    metric_logger = utils.MetricLogger(delimiter="  ")
-    metric_logger.add_meter("lr", utils.SmoothedValue(window_size=1, fmt="{value:.6f}"))
+    metric_logger = MetricLogger(delimiter="  ")
+    metric_logger.add_meter("lr", SmoothedValue(window_size=1, fmt="{value:.6f}"))
     if not wo_class_error:
         metric_logger.add_meter(
-            "class_error", utils.SmoothedValue(window_size=1, fmt="{value:.2f}")
+            "class_error", SmoothedValue(window_size=1, fmt="{value:.2f}")
         )
 
     _cnt = 0
@@ -84,7 +82,7 @@ def train_one_epoch(
             )
 
         # reduce losses over all GPUs for logging purposes
-        loss_dict_reduced = utils.reduce_dict(loss_dict)
+        loss_dict_reduced = reduce_dict(loss_dict)
         loss_dict_reduced_unscaled = {
             f"{k}_unscaled": v for k, v in loss_dict_reduced.items()
         }
@@ -257,10 +255,10 @@ def evaluate(
     model.eval()
     criterion.eval()
 
-    metric_logger = utils.MetricLogger(delimiter="  ")
+    metric_logger = MetricLogger(delimiter="  ")
     if not wo_class_error:
         metric_logger.add_meter(
-            "class_error", utils.SmoothedValue(window_size=1, fmt="{value:.2f}")
+            "class_error", SmoothedValue(window_size=1, fmt="{value:.2f}")
         )
     iou_types = tuple(k for k in ("segm", "bbox") if k in postprocessors.keys())
     try:
@@ -293,7 +291,7 @@ def evaluate(
         weight_dict = criterion.weight_dict
 
         # reduce losses over all GPUs for logging purposes
-        loss_dict_reduced = utils.reduce_dict(loss_dict)
+        loss_dict_reduced = reduce_dict(loss_dict)
         loss_dict_reduced_scaled = {
             k: v * weight_dict[k]
             for k, v in loss_dict_reduced.items()
@@ -397,7 +395,7 @@ def evaluate(
 
         # output_state_dict['gt_info'] = torch.cat(output_state_dict['gt_info'])
         # output_state_dict['res_info'] = torch.cat(output_state_dict['res_info'])
-        savepath = osp.join(args.output_dir, f"results-{utils.get_rank()}.pkl")
+        savepath = osp.join(args.output_dir, f"results-{get_rank()}.pkl")
         print("Saving res to {}".format(savepath))
         torch.save(output_state_dict, savepath)
 
