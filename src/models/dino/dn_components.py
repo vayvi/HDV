@@ -10,9 +10,9 @@
 
 import torch
 from ...util.misc import unnormalize_parameter
+from ...util.box_ops import param_xyxy_to_cxcywh, param_cxcywh_to_xyxy
 
 # from .DABDETR import sigmoid_focal_loss
-from util import box_ops
 
 
 def prepare_for_cdn(
@@ -115,12 +115,12 @@ def prepare_for_cdn(
             rand_part[negative_idx] += 1.0
 
             rand_part *= rand_sign
-            known_param_xyxy = box_ops.param_cxcywh_to_xyxy(known_params)
+            known_param_xyxy = param_cxcywh_to_xyxy(known_params)
             known_param_ = (
                 known_param_xyxy + torch.mul(rand_part, diff).cuda() * box_noise_scale
             )
             known_param_ = known_param_.clamp(min=0.0, max=1.0)  # xyxy
-            known_param_expand = box_ops.param_xyxy_to_cxcywh(known_param_)
+            known_param_expand = param_xyxy_to_cxcywh(known_param_)
 
         m = known_labels_expaned.long().to("cuda")
         input_label_embed = label_enc(m)
