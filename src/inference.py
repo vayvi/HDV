@@ -12,13 +12,25 @@ import xml.etree.ElementTree as ET
 from svg.path import parse_path
 from svg.path.path import Line, Arc
 
+from . import build_model_main
 from .util.logger import SLogger
 from .util import MODEL_DIR, DEFAULT_CONF, DATA_DIR
 from .util.slconfig import SLConfig
 from .util.visualizer import COCOVisualizer
-from .util.primitives import PRIM_INFO, get_arc_param, write_svg_dwg, line_to_xy, circle_to_xy, arc_to_xy, remove_duplicate_lines, \
-    remove_small_lines, remove_duplicate_circles, remove_duplicate_arcs, remove_arcs_on_top_of_circles, \
+from .util.primitives import (
+    PRIM_INFO,
+    get_arc_param,
+    write_svg_dwg,
+    line_to_xy,
+    circle_to_xy,
+    arc_to_xy,
+    remove_duplicate_lines,
+    remove_small_lines,
+    remove_duplicate_circles,
+    remove_duplicate_arcs,
+    remove_arcs_on_top_of_circles,
     remove_arcs_on_top_of_lines
+)
 
 from .datasets import transforms as T
 
@@ -104,6 +116,7 @@ def pred_to_dict(preds):
         })
     return prim_dict
 
+
 def process_preds(preds, prim_type, img_size):
     p_pred, p_score = preds[f"{prim_type}s"], preds[f"{prim_type}_scores"]
 
@@ -121,12 +134,13 @@ def process_preds(preds, prim_type, img_size):
     preds[f"{prim_type}_scores"] = p_score
     return preds
 
-def generate_prediction(img, processed_img, model, threshold=0.3):
-    with torch.no_grad():
-        out_size = torch.Tensor([[img.size[1], img.size[0]]]) # torch.Tensor([[1.0, 1.0]])
 
-        output = model.cuda()(processed_img[None].cuda())
-        output = postprocessors['param'](output, out_size.cuda(), to_xyxy=False)[0]
+def generate_prediction(img, processed_img, trained_model, post_processors, threshold=0.3):
+    with torch.no_grad():
+        out_size = torch.Tensor([[img.size[1], img.size[0]]])  # torch.Tensor([[1.0, 1.0]])
+
+        output = trained_model.cuda()(processed_img[None].cuda())
+        output = post_processors['param'](output, out_size.cuda(), to_xyxy=False)[0]
 
         scores = output['scores']
 
@@ -178,121 +192,6 @@ def save_pred_as_npz(img_name, pred_dict, pred_dir):
         pred_dir / f"{img_name}.npz",
         **pred_dict
     )
-
-
-def predict(image_path, output_dir, model):
-    # NOT USED original function here as legacy code
-    im_name = Path(image_path).stem
-    image = Image.open(image_path).convert("RGB")  # load image
-    orig_img_size = image.size
-    transform = T.Compose([
-        T.RandomResize([800], max_size=1333),
-        T.ToTensor(),
-        T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-    ])
-    tr_img, _ = transform(image, None)
-    size = torch.Tensor([tr_img.shape[1], tr_img.shape[2]])
-    out_size = torch.Tensor([[orig_img_size[1], orig_img_size[0]]])
-
-    # output
-    output = model.cuda()(tr_img[None].cuda())
-    output = postprocessors['param'](output, out_size.cuda(), to_xyxy=False)[0]
-
-    threshold, arc_threshold = 0.3, 0.3
-    scores = output['scores']
-    labels = output['labels']
-    boxes = output['parameters']
-    select_mask = ((scores > threshold) & (labels != 2)) | ((scores > arc_threshold) & (labels == 2))
-    labels = labels[select_mask]
-    boxes = boxes[select_mask]
-    scores = scores[select_mask]
-    pred_dict = {'parameters': boxes, 'labels': labels, 'scores': scores}
-    mask = pred_dict["labels"] == 0
-    lines, line_scores = pred_dict["parameters"][mask][:, :4], pred_dict["scores"][mask]
-    mask = pred_dict["labels"] == 1
-    circles, circle_scores = (
-        pred_dict["parameters"][mask][:, 4:8],
-        pred_dict["scores"][mask],
-    )
-    mask = pred_dict["labels"] == 2
-    arcs, arc_scores = pred_dict["parameters"][mask][:, 8:14], pred_dict["scores"][mask]
-    lines, line_scores = lines.cpu().numpy(), line_scores.cpu().numpy()
-    circles, circle_scores = circles.cpu().numpy(), circle_scores.cpu().numpy()
-    arcs, arc_scores = arcs.cpu().numpy(), arc_scores.cpu().numpy()
-    lines = np.array([line_to_xy(x) for x in lines])
-    circles = np.array([circle_to_xy(x) for x in circles])
-    arcs = np.array([arc_to_xy(x) for x in arcs])
-
-    # some duplicate postprocessing
-    lines, line_scores = remove_duplicate_lines(lines, orig_img_size, line_scores)
-    lines, line_scores = remove_small_lines(lines, orig_img_size, line_scores)
-    circles, circle_scores = remove_duplicate_circles(circles, orig_img_size, circle_scores)
-    arcs, arc_scores = remove_duplicate_arcs(arcs, orig_img_size, arc_scores)
-    arcs, arc_scores = remove_arcs_on_top_of_circles(arcs, circles, orig_img_size, arc_scores)
-    arcs, arc_scores = remove_arcs_on_top_of_lines(arcs, lines, orig_img_size, arc_scores)
-
-    lines = lines.reshape(-1, 2, 2)
-    arcs = arcs.reshape(-1, 3, 2)
-
-    size = [tr_img.shape[1], tr_img.shape[2]]
-
-    dwg = svgwrite.Drawing(str(output_dir / f"{im_name}.svg"), profile="tiny", size=size)
-    dwg.add(dwg.image(href=f"{im_name}.jpg", insert=(0, 0), size=size))
-    dwg = write_svg_dwg(dwg, lines, circles, arcs, show_image=False, image=None)
-    dwg.save(pretty=True)
-    # break
-
-    ET.register_namespace('', "http://www.w3.org/2000/svg")
-    ET.register_namespace('xlink', "http://www.w3.org/1999/xlink")
-    ET.register_namespace('sodipodi', "http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd")
-    ET.register_namespace('inkscape', "http://www.inkscape.org/namespaces/inkscape")
-
-    # input_folder = output_dir
-    file_name = output_dir / f"{im_name}.svg"
-    tree = ET.parse(file_name)
-    root = tree.getroot()
-
-    root.set('xmlns:inkscape', 'http://www.inkscape.org/namespaces/inkscape')
-    root.set('xmlns:sodipodi', 'http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd')
-    root.set('inkscape:version', '1.3 (0e150ed, 2023-07-21)')
-
-    # Regular expression to match the 'a' or 'A' command in the 'd' attribute
-    arc_regex = re.compile(r'[aA]')
-
-    # Iterate over all 'path' elements
-    for path in root.findall('{http://www.w3.org/2000/svg}path'):
-        # Get the 'd' attribute
-        d = path.get('d', '')
-
-        # If the 'd' attribute contains an arc
-        if arc_regex.search(d):
-            # Add the 'sodipodi:type' and 'sodipodi:arc-type' attributes
-            path.set('sodipodi:type', 'arc')
-            path.set('sodipodi:arc-type', 'arc')
-            path_parsed = parse_path(d)
-
-            for e in path_parsed:
-                if isinstance(e, Line):
-                    continue
-                elif isinstance(e, Arc):
-                    center, radius, start_angle, end_angle, p0, p1 = get_arc_param([e])
-                    path.set('sodipodi:cx', f'{center[0]}')
-                    path.set('sodipodi:cy', f'{center[1]}')
-                    path.set('sodipodi:rx', f'{radius}')
-                    path.set('sodipodi:ry', f'{radius}')
-                    path.set('sodipodi:start', f'{start_angle}')
-                    path.set('sodipodi:end', f'{end_angle}')
-
-    # Write the changes back to the file
-    tree.write(file_name, xml_declaration=True)
-    return {
-        "lines": lines,
-        "line_scores": line_scores,
-        "circles": circles,
-        "circle_scores": circle_scores,
-        "arcs": arcs,
-        "arc_scores": arc_scores,
-    }
 
 
 def save_pred_as_svg(img_path, img_name, img_size, pred_dict, pred_dir):
@@ -376,7 +275,6 @@ if __name__ == "__main__":
 
     config = set_config(config_path)
 
-    from main import build_model_main
     model, _, postprocessors = build_model_main(config)
 
     checkpoint = torch.load(model_checkpoint_path, map_location='cuda')
@@ -402,7 +300,7 @@ if __name__ == "__main__":
         # preds = predict(path, dataset_folder / f"svg_preds_{args.model_name}{epoch}", model, logger)
 
         orig_img, tr_img = preprocess_img(path)
-        preds = generate_prediction(orig_img, tr_img, model)
+        preds = generate_prediction(orig_img, tr_img, model, postprocessors)
 
         if "img" in formats:
             # FIX by copying logic of inference notebook
