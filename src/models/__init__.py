@@ -5,7 +5,3 @@
 # ------------------------------------------------------------------------
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 from .dino import build_dino
-
-
-def build_model(args):
-    return build_dino(args)

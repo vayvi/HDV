@@ -20,8 +20,6 @@ from torch.nn.init import xavier_uniform_, constant_
 
 from ..functions import MSDeformAttnFunction
 
-# from ..functions import ms_deform_attn_core_pytorch
-
 
 def _is_power_of_2(n):
     if (not isinstance(n, int)) or (n < 0):
