@@ -233,12 +233,12 @@ The outputs of your run will be logged with wandb.
 If you find this work useful, please consider citing:
 
 ```
-@misc{kalleli2024historical,
-    title={Historical Astronomical Diagrams Decomposition in Geometric Primitives},
-    author={Syrine Kalleli and Scott Trigg and Ségolène Albouy and Matthieu Husson and Mathieu Aubry},
-    year={2024},
-    eprint={2403.08721},
-    archivePrefix={arXiv},
-    primaryClass={cs.CV}
+@inproceedings{kalleli2024historical,
+  title={Historical astronomical diagrams decomposition in geometric primitives},
+  author={Kalleli, Syrine and Trigg, Scott and Albouy, S{\'e}gol{\`e}ne and Husson, Matthieu and Aubry, Mathieu},
+  booktitle={International Conference on Document Analysis and Recognition},
+  pages={108--125},
+  year={2024},
+  organization={Springer}
 }
 ```
