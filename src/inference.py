@@ -277,7 +277,7 @@ if __name__ == "__main__":
 
     model, _, postprocessors = build_model_main(config)
 
-    checkpoint = torch.load(model_checkpoint_path, map_location='cuda')
+    checkpoint = torch.load(model_checkpoint_path, map_location='cuda', weights_only=False)
     model.load_state_dict(checkpoint['model'])
     _ = model.eval()
 

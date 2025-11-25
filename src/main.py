@@ -261,7 +261,7 @@ def main(args):
                 # only evaluate numbered checkpoints
                 continue
 
-            checkpoint = torch.load(checkpoint_path, map_location="cpu")
+            checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
             if run is not None:
                 epoch = checkpoint["epoch"]
                 run.log({"step": step * epoch})
@@ -293,7 +293,7 @@ def main(args):
         return
 
     if args.frozen_weights is not None:
-        checkpoint = torch.load(args.frozen_weights, map_location="cpu")
+        checkpoint = torch.load(args.frozen_weights, map_location="cpu", weights_only=False)
         model_without_ddp.detr.load_state_dict(checkpoint["model"])
 
     if os.path.exists(model_dir / "checkpoint.pth"):
@@ -307,7 +307,7 @@ def main(args):
                 check_hash=True
             )
         else:
-            checkpoint = torch.load(args.resume, map_location="cpu")
+            checkpoint = torch.load(args.resume, map_location="cpu", weights_only=False)
 
         model_without_ddp.load_state_dict(checkpoint["model"])
         if args.use_ema:
@@ -330,7 +330,7 @@ def main(args):
             args.start_epoch = checkpoint["epoch"] + 1
 
     if (not args.resume) and args.pretrain_model_path:
-        checkpoint = torch.load(args.pretrain_model_path, map_location="cpu")["model"]
+        checkpoint = torch.load(args.pretrain_model_path, map_location="cpu", weights_only=False)["model"]
 
         from collections import OrderedDict
 

@@ -100,7 +100,7 @@ def plot_precision_recall(files, naming_scheme='iter'):
         raise ValueError(f'not supported {naming_scheme}')
     fig, axs = plt.subplots(ncols=2, figsize=(16, 5))
     for f, color, name in zip(files, sns.color_palette("Blues", n_colors=len(files)), names):
-        data = torch.load(f)
+        data = torch.load(f, weights_only=False)
         # precision is n_iou, n_points, n_cat, n_area, max_det
         precision = data['precision']
         recall = data['params'].recThrs

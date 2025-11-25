@@ -105,7 +105,7 @@ def main(
     args = SLConfig.fromfile(model_config_path)
     args.device = "cuda"
     model, _, postprocessors = build_model_main(args)
-    checkpoint = torch.load(model_checkpoint_path, map_location="cpu")
+    checkpoint = torch.load(model_checkpoint_path, map_location="cpu", weights_only=False)
     model.load_state_dict(checkpoint["model"])
     _ = model.eval()
 
